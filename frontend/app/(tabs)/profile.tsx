@@ -9,7 +9,7 @@ import { miscApi } from '../../src/api';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [following, setFollowing] = useState<any>({ teams: [], players: [] });
   const [loading, setLoading] = useState(false);
 
@@ -24,6 +24,13 @@ export default function ProfileScreen() {
       setLoading(false);
     })();
   }, [user]);
+
+  const togglePro = async () => {
+    try {
+      await miscApi.togglePro();
+      await refreshUser();
+    } catch { Alert.alert('Failed'); }
+  };
 
   if (!user) {
     return (
@@ -51,7 +58,58 @@ export default function ProfileScreen() {
         </View>
         <Text style={styles.name}>{user.name}</Text>
         <Text style={styles.email}>{user.email}</Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+          {user.is_pro ? (
+            <View style={styles.proPill}>
+              <Ionicons name="sparkles" size={10} color="#fff" />
+              <Text style={styles.proPillTxt}>PRO</Text>
+            </View>
+          ) : null}
+          {user.is_admin ? (
+            <View style={[styles.proPill, { backgroundColor: '#6E56CF' }]}>
+              <Ionicons name="shield-checkmark" size={10} color="#fff" />
+              <Text style={styles.proPillTxt}>ADMIN</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
+
+      {/* Pro upgrade card */}
+      <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
+        {user.is_pro ? (
+          <View style={styles.proCard}>
+            <Ionicons name="sparkles" size={18} color="#FFB020" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.proTitle}>You&apos;re a Pro member</Text>
+              <Text style={styles.proSub}>Unlimited Ask AI · Priority insights</Text>
+            </View>
+            <TouchableOpacity onPress={togglePro} testID="downgrade-pro">
+              <Text style={styles.proAction}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.upgradeCard} onPress={togglePro} testID="go-pro-btn">
+            <View style={styles.upgradeIcon}>
+              <Ionicons name="sparkles" size={20} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.upgradeTitle}>Go Pro · ₹99/mo</Text>
+              <Text style={styles.upgradeSub}>Unlimited Ask AI · Ad-free · Priority match insights</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {user.is_admin ? (
+        <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
+          <TouchableOpacity style={styles.adminCard} onPress={() => router.push('/admin')} testID="admin-panel-btn">
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.text} />
+            <Text style={styles.adminTxt}>Open Admin Panel</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Following</Text>
@@ -147,4 +205,17 @@ const styles = StyleSheet.create({
 
   logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: spacing.lg, paddingVertical: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
   logoutTxt: { fontFamily: fonts.bodyBold, color: colors.wicket, fontSize: 14 },
+
+  proPill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FFB020', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  proPillTxt: { fontFamily: fonts.bodyBold, color: '#fff', fontSize: 9, letterSpacing: 1 },
+  upgradeCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.text, borderRadius: radius.lg },
+  upgradeIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  upgradeTitle: { fontFamily: fonts.headingBlack, fontSize: 16, color: '#fff', letterSpacing: -0.3 },
+  upgradeSub: { fontFamily: fonts.body, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  proCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: '#FFF7E0', borderRadius: radius.lg },
+  proTitle: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#111' },
+  proSub: { fontFamily: fonts.body, fontSize: 11, color: '#8B6A00' },
+  proAction: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.wicket },
+  adminCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.bgSecondary, borderRadius: radius.lg },
+  adminTxt: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
 });

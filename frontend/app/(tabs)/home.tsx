@@ -55,8 +55,8 @@ export default function HomeScreen() {
           <Text style={styles.greet}>{user ? `Hi, ${user.name.split(' ')[0]}` : 'Welcome'}</Text>
           <Text style={styles.appTitle}>CricLive</Text>
         </View>
-        <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/(tabs)/profile')} testID="avatar-btn">
-          <Ionicons name="person-circle-outline" size={34} color={colors.text} />
+        <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/notifications')} testID="bell-btn">
+          <Ionicons name="notifications-outline" size={26} color={colors.text} />
         </TouchableOpacity>
       </View>
 

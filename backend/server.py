@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -9,6 +9,8 @@ import uuid
 import jwt
 import bcrypt
 import httpx
+import asyncio
+import random
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -61,31 +63,56 @@ class UserOut(BaseModel):
     id: str
     email: str
     name: str
+    is_admin: bool = False
+    is_pro: bool = False
+
 
 class AuthResponse(BaseModel):
     token: str
     user: UserOut
 
+
 class FollowRequest(BaseModel):
-    target_type: str  # "team" | "player"
+    target_type: str
     target_id: str
+
 
 class AlertRequest(BaseModel):
     match_id: str
-    alert_types: List[str]  # ["wicket","boundary","player_to_crease"]
+    alert_types: List[str]
     player_id: Optional[str] = None
+
 
 class AskAIRequest(BaseModel):
     query: str
     match_id: Optional[str] = None
 
+
 class PollVoteRequest(BaseModel):
     poll_id: str
     option_index: int
 
+
 class ChatMessageCreate(BaseModel):
     match_id: str
     message: str
+
+
+class NewsCreate(BaseModel):
+    title: str
+    body: str
+    image_url: Optional[str] = None
+    tags: Optional[List[str]] = []
+
+
+class PollCreate(BaseModel):
+    question: str
+    options: List[str]
+
+
+class FeaturedToggle(BaseModel):
+    match_id: str
+    featured: bool
 
 
 # =========================
@@ -172,10 +199,14 @@ async def register(data: UserRegister):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "following_teams": [],
         "following_players": [],
+        "is_admin": False,
+        "is_pro": False,
+        "ai_queries_today": 0,
+        "ai_queries_date": datetime.now(timezone.utc).date().isoformat(),
     }
     await db.users.insert_one(user_doc)
     token = create_token(user_id)
-    return AuthResponse(token=token, user=UserOut(id=user_id, email=data.email.lower(), name=data.name))
+    return AuthResponse(token=token, user=UserOut(id=user_id, email=data.email.lower(), name=data.name, is_admin=False, is_pro=False))
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
@@ -184,12 +215,32 @@ async def login(data: UserLogin):
     if not user or not verify_password(data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(user["id"])
-    return AuthResponse(token=token, user=UserOut(id=user["id"], email=user["email"], name=user["name"]))
+    return AuthResponse(token=token, user=UserOut(
+        id=user["id"], email=user["email"], name=user["name"],
+        is_admin=user.get("is_admin", False), is_pro=user.get("is_pro", False),
+    ))
 
 
 @api_router.get("/auth/me", response_model=UserOut)
 async def me(user=Depends(get_current_user)):
-    return UserOut(id=user["id"], email=user["email"], name=user["name"])
+    return UserOut(
+        id=user["id"], email=user["email"], name=user["name"],
+        is_admin=user.get("is_admin", False), is_pro=user.get("is_pro", False),
+    )
+
+
+@api_router.post("/auth/toggle-pro")
+async def toggle_pro(user=Depends(get_current_user)):
+    """Local-only Pro toggle (payments skipped). Flips is_pro for the current user."""
+    new_val = not user.get("is_pro", False)
+    await db.users.update_one({"id": user["id"]}, {"$set": {"is_pro": new_val}})
+    return {"is_pro": new_val}
+
+
+async def require_admin(user=Depends(get_current_user)):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
 
 
 # =========================
@@ -401,8 +452,26 @@ async def list_alerts(user=Depends(get_current_user)):
 # =========================
 # Ask AI (Claude Sonnet 4.5 via LiteLLM + Emergent)
 # =========================
+FREE_DAILY_AI_LIMIT = 5
+
 @api_router.post("/ai/ask")
-async def ask_ai(data: AskAIRequest):
+async def ask_ai(data: AskAIRequest, user: Optional[Dict[str, Any]] = Depends(get_user_optional)):
+    # Rate limit: unauthenticated gets 3, free tier 5/day, pro unlimited
+    if user:
+        today = datetime.now(timezone.utc).date().isoformat()
+        if user.get("ai_queries_date") != today:
+            await db.users.update_one({"id": user["id"]}, {"$set": {"ai_queries_date": today, "ai_queries_today": 0}})
+            user["ai_queries_today"] = 0
+        used_today = user.get("ai_queries_today", 0)
+        if not user.get("is_pro") and used_today >= FREE_DAILY_AI_LIMIT:
+            return {
+                "answer": f"You've reached your daily free limit of {FREE_DAILY_AI_LIMIT} questions. Upgrade to Pro for unlimited Ask AI.",
+                "query": data.query,
+                "limit_reached": True,
+                "is_pro": False,
+            }
+        await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_today": 1}})
+
     context = ""
     if data.match_id:
         m = mock_data.get_match_by_id(data.match_id)
@@ -422,7 +491,10 @@ async def ask_ai(data: AskAIRequest):
             system_message=system_prompt,
         ).with_model("anthropic", "claude-sonnet-4-5").with_params(max_tokens=500)
         answer = await chat.send_message(UserMessage(text=data.query + context))
-        return {"answer": answer, "query": data.query}
+        remaining = None
+        if user and not user.get("is_pro"):
+            remaining = max(0, FREE_DAILY_AI_LIMIT - (user.get("ai_queries_today", 0) + 1))
+        return {"answer": answer, "query": data.query, "remaining_free": remaining, "is_pro": user.get("is_pro", False) if user else False}
     except Exception as e:
         logger.error(f"AI error: {e}")
         return {"answer": f"I'm having trouble reaching my cricket brain right now ({str(e)[:80]}). Please try again.", "query": data.query, "error": True}
@@ -489,6 +561,205 @@ async def get_chat(match_id: str):
         ]
         return {"messages": demo}
     return {"messages": list(reversed(rows))}
+
+
+# =========================
+# Notifications (in-app)
+# =========================
+@api_router.get("/notifications")
+async def list_notifications(user=Depends(get_current_user)):
+    rows = await db.notifications.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    # Auto-seed a few if empty (demo)
+    if not rows:
+        demo = [
+            {"id": str(uuid.uuid4()), "user_id": user["id"], "title": "Kohli is batting!", "body": "Virat Kohli walked to the crease in MI vs CSK", "type": "player_to_crease", "match_id": "m_live_1", "read": False, "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": str(uuid.uuid4()), "user_id": user["id"], "title": "WICKET!", "body": "Rohit Sharma is out — caught at deep mid-wicket", "type": "wicket", "match_id": "m_live_1", "read": False, "created_at": (datetime.now(timezone.utc) - timedelta(minutes=4)).isoformat()},
+            {"id": str(uuid.uuid4()), "user_id": user["id"], "title": "SIX!", "body": "Klaasen hits a massive six off Bumrah!", "type": "boundary", "match_id": "m_live_1", "read": False, "created_at": (datetime.now(timezone.utc) - timedelta(minutes=12)).isoformat()},
+            {"id": str(uuid.uuid4()), "user_id": user["id"], "title": "Match starting soon", "body": "IND vs AUS begins in 30 minutes at Narendra Modi Stadium", "type": "match_start", "match_id": "m_live_3", "read": True, "created_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()},
+        ]
+        await db.notifications.insert_many([d.copy() for d in demo])
+        rows = sorted(demo, key=lambda x: x["created_at"], reverse=True)
+    return {"notifications": rows, "unread": sum(1 for n in rows if not n.get("read"))}
+
+
+@api_router.post("/notifications/{nid}/read")
+async def mark_read(nid: str, user=Depends(get_current_user)):
+    await db.notifications.update_one({"id": nid, "user_id": user["id"]}, {"$set": {"read": True}})
+    return {"status": "ok"}
+
+
+@api_router.post("/notifications/mark-all-read")
+async def mark_all_read(user=Depends(get_current_user)):
+    await db.notifications.update_many({"user_id": user["id"]}, {"$set": {"read": True}})
+    return {"status": "ok"}
+
+
+# =========================
+# News (public read, admin write)
+# =========================
+@api_router.get("/news")
+async def list_news():
+    rows = await db.news.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    # Seed demo if empty
+    if not rows:
+        demo_news = [
+            {"id": str(uuid.uuid4()), "title": "IPL 2026 kicks off at Wankhede", "body": "Mumbai Indians open their season with a thriller against Chennai Super Kings. Early predictions favour MI at home.", "image_url": "https://images.pexels.com/photos/30671893/pexels-photo-30671893.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940", "tags": ["IPL", "MI", "CSK"], "created_at": datetime.now(timezone.utc).isoformat(), "author": "Admin"},
+            {"id": str(uuid.uuid4()), "title": "Kohli named RCB captain for 2026", "body": "In a surprise move, Virat Kohli returns as captain for RCB in the new season after a three-year gap.", "image_url": None, "tags": ["IPL", "RCB"], "created_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(), "author": "Admin"},
+            {"id": str(uuid.uuid4()), "title": "ICC T20 World Cup 2026 schedule released", "body": "India to host T20 WC 2026 from Feb 15 with 20 teams and 55 matches across 12 venues.", "image_url": None, "tags": ["T20WC", "ICC"], "created_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(), "author": "Admin"},
+        ]
+        await db.news.insert_many([d.copy() for d in demo_news])
+        rows = demo_news
+    return {"news": rows}
+
+
+# =========================
+# Admin endpoints
+# =========================
+@api_router.post("/admin/news")
+async def admin_create_news(data: NewsCreate, admin=Depends(require_admin)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "title": data.title,
+        "body": data.body,
+        "image_url": data.image_url,
+        "tags": data.tags or [],
+        "author": admin["name"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.news.insert_one(doc.copy())
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api_router.delete("/admin/news/{nid}")
+async def admin_delete_news(nid: str, admin=Depends(require_admin)):
+    await db.news.delete_one({"id": nid})
+    return {"status": "deleted"}
+
+
+@api_router.post("/admin/polls")
+async def admin_create_poll(data: PollCreate, admin=Depends(require_admin)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "question": data.question,
+        "options": [{"label": o, "votes": 0} for o in data.options],
+        "total": 0,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": admin["id"],
+    }
+    await db.admin_polls.insert_one(doc.copy())
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api_router.get("/admin/stats")
+async def admin_stats(admin=Depends(require_admin)):
+    users = await db.users.count_documents({})
+    pro_users = await db.users.count_documents({"is_pro": True})
+    alerts = await db.alerts.count_documents({})
+    news = await db.news.count_documents({})
+    poll_votes = await db.poll_votes.count_documents({})
+    chat_messages = await db.chat_messages.count_documents({})
+    return {"users": users, "pro_users": pro_users, "alerts": alerts, "news": news, "poll_votes": poll_votes, "chat_messages": chat_messages}
+
+
+@api_router.post("/admin/featured")
+async def admin_toggle_featured(data: FeaturedToggle, admin=Depends(require_admin)):
+    await db.featured.update_one({"match_id": data.match_id}, {"$set": {"match_id": data.match_id, "featured": data.featured, "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return {"status": "ok"}
+
+
+# =========================
+# WebSocket for live score updates
+# =========================
+@app.websocket("/ws/live/{match_id}")
+async def ws_live(ws: WebSocket, match_id: str):
+    await ws.accept()
+    try:
+        base = mock_data.get_match_by_id(match_id)
+        if not base or not base.get("score"):
+            await ws.send_json({"error": "Match not live or not found"})
+            await ws.close()
+            return
+
+        # Simulated live state that we mutate every 2s
+        state = {
+            "runs": base["score"]["runs"],
+            "wickets": base["score"]["wickets"],
+            "overs": base["score"]["overs"],
+            "balls": base["score"]["balls"],
+            "target": base["score"].get("target"),
+        }
+        while True:
+            # Simulate a ball
+            r = random.random()
+            if r < 0.02:
+                state["wickets"] = min(10, state["wickets"] + 1)
+                ball_event = {"runs": 0, "wicket": True, "desc": "OUT!"}
+            elif r < 0.10:
+                state["runs"] += 6; ball_event = {"runs": 6, "desc": "SIX!"}
+            elif r < 0.25:
+                state["runs"] += 4; ball_event = {"runs": 4, "desc": "FOUR!"}
+            elif r < 0.55:
+                add = random.choice([1, 2])
+                state["runs"] += add; ball_event = {"runs": add, "desc": f"{add} run"}
+            else:
+                ball_event = {"runs": 0, "desc": "Dot ball"}
+            state["balls"] += 1
+            if state["balls"] >= 6:
+                state["balls"] = 0
+                state["overs"] += 1
+
+            rr = round((state["runs"] / max(state["overs"] + state["balls"] / 6, 0.1)), 2)
+            rrr = None
+            if state["target"]:
+                rem_balls = max(1, 120 - (state["overs"] * 6 + state["balls"]))
+                rrr = round(((state["target"] - state["runs"]) / (rem_balls / 6)), 2)
+
+            await ws.send_json({
+                "match_id": match_id,
+                "score": {"runs": state["runs"], "wickets": state["wickets"], "overs": state["overs"], "balls": state["balls"], "rr": rr, "rrr": rrr, "target": state["target"]},
+                "last_ball": ball_event,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            })
+
+            # Chase complete?
+            if state["target"] and state["runs"] >= state["target"]:
+                await ws.send_json({"match_id": match_id, "status": "completed", "result": "Chasing team won!"})
+                break
+            if state["wickets"] >= 10 or (state["overs"] >= 20):
+                await ws.send_json({"match_id": match_id, "status": "completed", "result": "Innings ended"})
+                break
+
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        logger.info(f"WS disconnected for match {match_id}")
+    except Exception as e:
+        logger.error(f"WS error: {e}")
+        try: await ws.close()
+        except Exception: pass
+
+
+# =========================
+# Startup: seed admin user
+# =========================
+@app.on_event("startup")
+async def seed_admin():
+    admin_email = "admin@cric.live"
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "name": "Cricket Admin",
+            "password": hash_password("admin1234"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "following_teams": [],
+            "following_players": [],
+            "is_admin": True,
+            "is_pro": True,
+            "ai_queries_today": 0,
+            "ai_queries_date": datetime.now(timezone.utc).date().isoformat(),
+        })
+        logger.info("Seeded admin user: admin@cric.live / admin1234")
 
 
 # =========================

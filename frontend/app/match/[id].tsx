@@ -61,12 +61,35 @@ export default function MatchDetail() {
           try {
             const v = await matchesApi.venue(m.data.venue);
             setVenueInfo(v.data);
-          } catch {}
+          } catch { /* ignore */ }
         }
       } catch (e) { console.log(e); }
       setLoading(false);
     })();
   }, [id]);
+
+  // Real-time WebSocket score updates
+  const [liveBall, setLiveBall] = useState<any>(null);
+  useEffect(() => {
+    if (!id || !match || match.status !== 'live') return;
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+    const wsUrl = backendUrl.replace(/^https?/, backendUrl.startsWith('https') ? 'wss' : 'ws') + `/ws/live/${id}`;
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.score) {
+            setMatch((prev: any) => prev ? { ...prev, score: { ...prev.score, ...msg.score } } : prev);
+          }
+          if (msg.last_ball) setLiveBall(msg.last_ball);
+        } catch { /* ignore */ }
+      };
+      ws.onerror = () => { /* ignore */ };
+    } catch { /* ignore */ }
+    return () => { try { ws && ws.close(); } catch { /* ignore */ } };
+  }, [id, match?.status]);
 
   const setAlert = async () => {
     if (!user) { router.push('/login'); return; }
@@ -113,7 +136,7 @@ export default function MatchDetail() {
         {match.status === 'live' ? (
           <View style={styles.liveBadge}>
             <View style={styles.liveDot} />
-            <Text style={styles.liveTxt}>LIVE</Text>
+            <Text style={styles.liveTxt}>LIVE {liveBall ? `· ${liveBall.desc}` : ''}</Text>
           </View>
         ) : null}
 

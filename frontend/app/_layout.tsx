@@ -38,6 +38,8 @@ export default function RootLayout() {
           <Stack.Screen name="match/[id]" />
           <Stack.Screen name="player/[id]" />
           <Stack.Screen name="team/[id]" />
+          <Stack.Screen name="notifications" />
+          <Stack.Screen name="admin" />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>

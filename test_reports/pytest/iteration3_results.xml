@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="21" time="45.164" timestamp="2026-04-23T13:30:01.681182+00:00" hostname="agent-env-2f8b86fc-5ab0-4eb2-af3a-e8b0fa67fdfd"><testcase classname="backend.tests.test_iteration3" name="test_admin_login" time="0.451" /><testcase classname="backend.tests.test_iteration3" name="test_me_admin_fields" time="0.062" /><testcase classname="backend.tests.test_iteration3" name="test_register_free_user" time="0.286" /><testcase classname="backend.tests.test_iteration3" name="test_toggle_pro_requires_auth" time="0.123" /><testcase classname="backend.tests.test_iteration3" name="test_toggle_pro_flips" time="0.153" /><testcase classname="backend.tests.test_iteration3" name="test_ai_ask_anonymous_works" time="4.573" /><testcase classname="backend.tests.test_iteration3" name="test_ai_free_user_hits_limit_after_5" time="33.347" /><testcase classname="backend.tests.test_iteration3" name="test_ai_pro_user_never_hits_limit" time="4.405" /><testcase classname="backend.tests.test_iteration3" name="test_notifications_requires_auth" time="0.150" /><testcase classname="backend.tests.test_iteration3" name="test_notifications_auto_seed_for_new_user" time="0.427" /><testcase classname="backend.tests.test_iteration3" name="test_mark_all_read" time="0.096" /><testcase classname="backend.tests.test_iteration3" name="test_public_news_list_seeded" time="0.049" /><testcase classname="backend.tests.test_iteration3" name="test_admin_create_news" time="0.094" /><testcase classname="backend.tests.test_iteration3" name="test_admin_news_forbidden_for_non_admin" time="0.053" /><testcase classname="backend.tests.test_iteration3" name="test_admin_create_poll" time="0.075" /><testcase classname="backend.tests.test_iteration3" name="test_admin_stats" time="0.054" /><testcase classname="backend.tests.test_iteration3" name="test_admin_stats_forbidden_for_non_admin" time="0.056" /><testcase classname="backend.tests.test_iteration3" name="test_admin_toggle_featured" time="0.114" /><testcase classname="backend.tests.test_iteration3" name="test_admin_delete_news_cleanup" time="0.103" /><testcase classname="backend.tests.test_iteration3" name="test_websocket_live_score_stream" time="0.172"><failure message="Failed: WebSocket failed: server rejected WebSocket connection: HTTP 502">backend/tests/test_iteration3.py:290: in test_websocket_live_score_stream
+    async with websockets.connect(url, open_timeout=10, close_timeout=5) as ws:
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:590: in __aenter__
+    return await self
+           ^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:546: in __await_impl__
+    await self.connection.handshake(
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:115: in handshake
+    raise self.protocol.handshake_exc
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:327: in parse
+    self.process_response(response)
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:144: in process_response
+    raise InvalidStatus(response)
+E   websockets.exceptions.InvalidStatus: server rejected WebSocket connection: HTTP 502
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iteration3.py:296: in test_websocket_live_score_stream
+    pytest.fail(f"WebSocket failed: {e}")
+E   Failed: WebSocket failed: server rejected WebSocket connection: HTTP 502</failure></testcase><testcase classname="backend.tests.test_iteration3" name="test_websocket_bad_match_returns_error" time="0.158"><failure message="Failed: WebSocket connect failed: server rejected WebSocket connection: HTTP 502">backend/tests/test_iteration3.py:318: in test_websocket_bad_match_returns_error
+    async with websockets.connect(url, open_timeout=10) as ws:
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:590: in __aenter__
+    return await self
+           ^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:546: in __await_impl__
+    await self.connection.handshake(
+/root/.venv/lib/python3.11/site-packages/websockets/asyncio/client.py:115: in handshake
+    raise self.protocol.handshake_exc
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:327: in parse
+    self.process_response(response)
+/root/.venv/lib/python3.11/site-packages/websockets/client.py:144: in process_response
+    raise InvalidStatus(response)
+E   websockets.exceptions.InvalidStatus: server rejected WebSocket connection: HTTP 502
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iteration3.py:323: in test_websocket_bad_match_returns_error
+    pytest.fail(f"WebSocket connect failed: {e}")
+E   Failed: WebSocket connect failed: server rejected WebSocket connection: HTTP 502</failure></testcase></testsuite></testsuites>

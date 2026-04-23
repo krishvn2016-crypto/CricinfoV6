@@ -68,4 +68,23 @@ export const miscApi = {
   chat: (match_id: string) => api.get(`/community/chat/${match_id}`),
   sendChat: (match_id: string, message: string) =>
     api.post('/community/chat', { match_id, message }),
+  // Notifications
+  notifications: () => api.get('/notifications'),
+  markNotificationRead: (id: string) => api.post(`/notifications/${id}/read`),
+  markAllRead: () => api.post('/notifications/mark-all-read'),
+  // News
+  news: () => api.get('/news'),
+  // Pro toggle
+  togglePro: () => api.post('/auth/toggle-pro'),
+};
+
+export const adminApi = {
+  stats: () => api.get('/admin/stats'),
+  createNews: (payload: { title: string; body: string; image_url?: string; tags?: string[] }) =>
+    api.post('/admin/news', payload),
+  deleteNews: (id: string) => api.delete(`/admin/news/${id}`),
+  createPoll: (payload: { question: string; options: string[] }) =>
+    api.post('/admin/polls', payload),
+  toggleFeatured: (match_id: string, featured: boolean) =>
+    api.post('/admin/featured', { match_id, featured }),
 };

@@ -1,0 +1,60 @@
+{
+  "summary": "Backend testing for iteration 3 new features (admin login, toggle-pro, AI daily limit for free users / Pro bypass, notifications, public news, admin news/polls/stats/featured, WebSocket live). Added /app/backend/tests/test_iteration3.py with 21 pytest cases. Result: 19/21 PASSED. The 2 failures are both on the WebSocket endpoint /ws/live/{match_id} when reached via the public preview URL (ingress returns HTTP 502). Direct connection to backend on localhost:8001 works correctly (verified ball-by-ball JSON messages stream every ~2s with score/last_ball), so the WS endpoint logic is sound; the issue is that the Kubernetes ingress only routes /api/* to the backend - /ws/* is not routed to port 8001. Previous iteration 2 suite (43/43) remains unaffected.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "WS /ws/live/{match_id}",
+        "issue": "External/public URL returns HTTP 502 on WebSocket upgrade (wss://<preview>/ws/live/m_live_1). Works on ws://localhost:8001/ws/live/m_live_1 (verified streaming). Root cause: ingress only proxies /api/* to backend; /ws/* is directed to Expo (3000) which cannot handle it. Fix: register the websocket route under /api (e.g. @app.websocket('/api/ws/live/{match_id}')) and update frontend WS URL accordingly. Also need to confirm ingress performs WebSocket upgrade on /api paths.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/toggle-pro",
+        "issue": "Endpoint is unauthenticated-togglable locally (any logged-in user can self-upgrade to Pro). This is by design per user request (payments skipped) but should be flagged before production."
+      },
+      {
+        "endpoint": "GET /api/news, GET /api/notifications",
+        "issue": "Demo-seed-on-empty pattern: inserting seeds on first GET mutates state and can cause race conditions under concurrent first requests. Low risk in demo."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Match detail -> live WebSocket updates",
+        "issue": "Frontend connects to wss://<EXPO_BACKEND_URL>/ws/live/{id}; since ingress rejects with 502, the app will never receive streamed ball updates in preview env. Backend itself is correct.",
+        "affected_testIDs": []
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/iteration3_results.xml"
+  ],
+  "action_items": [
+    "Register WebSocket route under the /api prefix: change `@app.websocket('/ws/live/{match_id}')` to `@app.websocket('/api/ws/live/{match_id}')` so the Kubernetes ingress routes it to backend:8001. Update the frontend client in /app/frontend/app/match/[id].tsx to connect to `${EXPO_BACKEND_URL.replace('http','ws')}/api/ws/live/${id}`.",
+    "After the move, re-run iteration3 WS tests (2 cases) to confirm streaming over public URL.",
+    "(Optional/cleanup) Guard the seed-on-empty logic in /api/news and /api/notifications with an idempotent upsert or startup seeder to avoid duplicate demo rows under concurrent first hits."
+  ],
+  "critical_code_review_comments": [
+    "server.py line 40 `os.environ['ANTHROPIC_API_KEY'] = EMERGENT_LLM_KEY` is a misleading fallback placeholder that could mask misconfiguration; either remove or document.",
+    "server.py WS loop sleeps 2s per ball. A completed T20 innings (120 balls) can keep a socket open for ~4 minutes; no idle client ping or max-duration guard. Consider adding a simple `if not ws.client_state.CONNECTED` check or heartbeat.",
+    "Admin seed uses `@app.on_event('startup')` which is deprecated in FastAPI; migrate to lifespan context manager.",
+    "`toggle_pro` has no audit log / rate limit - anyone logged in can flip their own flag (by design per user request, but flag for prod)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new - 21 tests: admin auth, toggle-pro, AI limit + pro bypass, notifications seed+mark-read+mark-all-read, public news, admin news create/delete + 403, admin polls, admin stats + 403, admin featured toggle, websocket live stream + error payload)",
+    "/app/test_reports/pytest/iteration3_results.xml (generated)"
+  ],
+  "success_rate": {"backend": "90.5% (19/21). Remaining 2 failures are both WS-over-ingress (backend logic verified correct on localhost:8001).", "frontend": "not tested this iteration per request"},
+  "seed_data_creation": "Ephemeral users: admin login (seeded by backend startup), freefan+<uuid>@cric.live (free user toggled to pro), notif+<uuid>@cric.live. One TEST_ news item (deleted via cleanup test). One TEST_ admin poll (not cleaned - intentional for admin-stats verification). Notifications auto-seeded for new users.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run: pytest /app/backend/tests/test_iteration3.py -v. Admin seeded by backend startup hook with email admin@cric.live / admin1234. The AI free-limit test consumes Emergent LLM quota (6 real LLM calls for free user + 1 anon + 1 pro) per run; if rate-limited upstream, tests still pass because the code path returns 200 with `error:true` and the test only checks the limit_reached flag on the 6th (which does not call the LLM). WebSocket module-level WS_BASE derives wss:// from EXPO_PUBLIC_BACKEND_URL; once backend path is moved under /api, update WS_BASE usage to include /api prefix in both tests. Previous regression suite at /app/backend/tests/test_backend.py (43 tests) remains green; no changes required there.",
+  "rca_of_issue": "WebSocket 502 over public URL → RCA: FastAPI registers the route on `app` (not on api_router with the /api prefix), so the final path is /ws/live/{match_id}. The preview-env Kubernetes ingress forwards ONLY /api/* to backend:8001; all other paths go to Expo:3000. Expo's Metro dev server has no /ws/live handler, hence HTTP 502 on the upgrade. Reproduction: `python3 -c \"import asyncio,websockets; asyncio.run(websockets.connect('wss://runs-analytics.preview.emergentagent.com/ws/live/m_live_1').__aenter__())\"` -> InvalidStatus HTTP 502. Control: `ws://localhost:8001/ws/live/m_live_1` streams JSON messages successfully every 2s. Mitigation: move endpoint to /api/ws/live/{match_id} and update the frontend URL builder in match/[id].tsx."
+}
