@@ -1,0 +1,135 @@
+{
+  "theme_and_archetype": {
+    "theme": "Light",
+    "archetype": "Archetype 4 (Swiss & High-Contrast)",
+    "reasoning": "A clean, modern light theme is explicitly requested. Archetype 4 ensures data density, high-contrast readability for live score numbers, and functional clarity while allowing bold team colors to act as functional accents rather than mere decoration."
+  },
+  "typography": {
+    "rules": "Strict adherence to the Anti-Default rule. Inter is banned for headings.",
+    "fonts": {
+      "headings": {
+        "family": "Outfit, sans-serif",
+        "weights": ["600", "800", "900"],
+        "usage": "Used for massive live scores, match titles, and section headers. Gives a dynamic, sporty, and technical feel."
+      },
+      "body": {
+        "family": "Manrope, sans-serif",
+        "weights": ["400", "500", "700"],
+        "usage": "Used for commentary, player stats, and general UI text. Provides excellent legibility at small sizes in dense scorecards."
+      },
+      "mono": {
+        "family": "JetBrains Mono, monospace",
+        "weights": ["500", "700"],
+        "usage": "Used for strike rates, economy rates, and specific data points where tabular lining is crucial."
+      }
+    },
+    "scale": {
+      "live_score": "text-5xl sm:text-6xl font-black tracking-tighter",
+      "h1": "text-4xl font-extrabold tracking-tight",
+      "h2": "text-2xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold",
+      "body": "text-base leading-relaxed",
+      "small_labels": "text-xs font-bold uppercase tracking-[0.1em]"
+    }
+  },
+  "color_palette": {
+    "backgrounds": {
+      "primary": "#FFFFFF",
+      "secondary": "#F4F5F7",
+      "tertiary": "#E9ECEF"
+    },
+    "surfaces": {
+      "card": "#FFFFFF",
+      "card_hover": "#F8F9FA",
+      "glass": "rgba(255, 255, 255, 0.8)"
+    },
+    "text": {
+      "primary": "#111418",
+      "secondary": "#495057",
+      "tertiary": "#868E96",
+      "inverse": "#FFFFFF"
+    },
+    "system": {
+      "live_indicator": "#FF3B30",
+      "success_green": "#34C759",
+      "border": "rgba(0, 0, 0, 0.08)"
+    },
+    "team_colors": {
+      "team_a": "#004BA0",
+      "team_b": "#F9CD05",
+      "team_c": "#E30613",
+      "team_d": "#6A0DAD"
+    }
+  },
+  "layout_and_spacing": {
+    "philosophy": "High density for scorecards, generous breathing room between distinct modules (matches).",
+    "mobile_first": true,
+    "containers": {
+      "padding": "p-4 sm:p-6",
+      "border_radius": "rounded-lg (Max 8px for a sharp, sporty, technical look)",
+      "max_width": "max-w-md mx-auto w-full (for mobile-app web feel)"
+    },
+    "grids": {
+      "stats_bento": "grid-cols-2 gap-3",
+      "scorecard": "grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-2 items-center"
+    }
+  },
+  "components_strategy": {
+    "navigation": {
+      "bottom_tabs": "Fixed to bottom, `backdrop-blur-xl bg-white/80` with a 1px `border-t border-black/5`. Unselected icons in neutral grey, selected icons in dark charcoal with a tiny indicator dot."
+    },
+    "match_cards": {
+      "style": "Flat card, `border border-black/5`, no shadow. Subtle shadow on interaction. Team colors represented via thin accent borders or colored typography.",
+      "live_badge": "Pulsing red dot with 'LIVE' in JetBrains Mono."
+    },
+    "live_match_intelligence": {
+      "wagon_wheel": "Custom SVG or layered div structure showing a cricket field from top-down with radiating lines for runs.",
+      "manhattan_chart": "Use Recharts for a tight, dense bar chart showing runs per over.",
+      "win_o_meter": "Horizontal progress bar (`h-2 rounded-full`) split into two team colors. No gradients, solid colors."
+    },
+    "ball_by_ball_commentary": {
+      "layout": "Vertical timeline. The current over is highlighted with a soft grey background.",
+      "ball_circle": "Small circle (`w-8 h-8 rounded-full flex items-center justify-center font-bold`) colored by outcome: Red for W, Green for 6, Blue for 4."
+    },
+    "buttons_and_inputs": {
+      "primary": "Solid dark charcoal (`bg-[#111418] text-white`) with strict 8px radius.",
+      "secondary": "Ghost or subtle outline (`bg-white border border-black/10 text-[#111418]`)."
+    }
+  },
+  "motion_and_interaction": {
+    "live_updates": "Data changes (runs, wickets) must flash briefly with a yellow/green background tint (`bg-yellow-100` fading to transparent over 1s) to draw attention.",
+    "page_transitions": "Slide-in from right for deep links (match details), fade-in for tab switches.",
+    "buttons": "Scale down slightly (`active:scale-95`) for tactile mobile feedback."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use stroke-width of 2 for a crisp, legible appearance at small sizes."
+  },
+  "media_urls": {
+    "onboarding_hero": {
+      "url": "https://images.pexels.com/photos/30671893/pexels-photo-30671893.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Dynamic cricket match scene with batsman, wicketkeeper, and fielder in action. Perfect for the app's welcome or auth screen."
+    },
+    "team_placeholder_or_fan_community": {
+      "url": "https://images.pexels.com/photos/31852382/pexels-photo-31852382.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Exciting cricket match with crowds wearing yellow jerseys under clear blue sky. Use for Community / Chat / Fan sections."
+    },
+    "default_match_background": {
+      "url": "https://images.pexels.com/photos/36230651/pexels-photo-36230651.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Captivating night cricket match with a large crowd at a stadium. Use as an optional header background for high-profile matches with a heavy `bg-white/90` overlay."
+    },
+    "stats_or_pitch_graphic": {
+      "url": "https://images.pexels.com/photos/35392636/pexels-photo-35392636.png?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "description": "Close-up of a cricket ball on a grassy pitch. Good for generic 'News' or 'Articles' thumbnail."
+    }
+  },
+  "instructions_to_main_agent": [
+    "You are building a mobile web app using React Web with an Expo/Mobile feel. The main wrapper should constrain the width (e.g., `max-w-md mx-auto min-h-screen bg-gray-50`) to simulate a phone layout on desktop.",
+    "Do NOT use transparent navigation headers without a solid or frosted blur background to ensure text remains readable.",
+    "Use standard HTML/Tailwind for custom layouts like the 'Wagon Wheel' or 'Win-o-meter' if Recharts feels too bulky. For dense data tables (Scorecards), strip out default padding to maximize space.",
+    "Team colors should be implemented dynamically via inline styles for backgrounds/borders of specific accent elements, falling back to a CSS variable.",
+    "Ensure all interactive elements have `data-testid` attributes (e.g., `data-testid=\"match-card-csk-mi\"`, `data-testid=\"nav-home\"`).",
+    "Do not use generic 'Inter' font. Use 'Outfit' for headings and 'Manrope' for body. Install these via Google Fonts in the main HTML/CSS.",
+    "Live score numbers must be massive and unmistakable. Avoid excessive use of cards; flat surfaces with 1px borders are preferred over heavy drop shadows."
+  ]
+}
