@@ -259,6 +259,30 @@ async def predicted_xi(match_id: str):
     return p
 
 
+@api_router.get("/matches/{match_id}/playing-xi")
+async def playing_xi_detailed(match_id: str):
+    """Final playing XI for both teams with detailed match-context stats (per-format avg, at venue, vs opponent, MoTM/MoS, WK stats)."""
+    data = mock_data.get_playing_xi_with_stats(match_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Match not found")
+    return data
+
+
+@api_router.get("/matches/{match_id}/umpires")
+async def match_umpires(match_id: str):
+    """On-field umpires, TV umpire, reserve umpire and match referee."""
+    match = mock_data.get_match_by_id(match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+    return mock_data.get_umpires_for_match(match_id)
+
+
+@api_router.get("/venues")
+async def venue_info_by_query(name: str):
+    """Get venue info by full name (passed as query param `name`)."""
+    return mock_data.get_venue_info(name)
+
+
 # =========================
 # Players & Teams
 # =========================

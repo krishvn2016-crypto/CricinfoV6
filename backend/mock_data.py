@@ -59,7 +59,173 @@ PLAYERS = [
      "stats": {"matches": 146, "runs": 3437, "avg": 30.14, "sr": 141.77, "fifties": 23, "sixes": 150, "fours": 348, "wickets": 0, "catches": 62}},
 ]
 
+# Enrich each player with additional detail stats (per-format, MoTM/MoS, WK stats, speciality, fielding)
+_SPECIALITY = {
+    "Batter": ["Top-order anchor", "Middle-order finisher", "Power-hitter", "Opener"],
+    "Bowler": ["Death-overs specialist", "New-ball specialist", "Yorker expert", "Spin wizard"],
+    "All-rounder": ["Finisher + death bowler", "Power-hitter + spin", "Top-order + part-time"],
+    "Wicket-keeper": ["Keeper-batter finisher", "Opening keeper-batter", "Middle-order keeper"],
+}
+_FIELDING = {
+    "Batter": ["Cover", "Mid-wicket", "Point", "Deep mid-wicket", "Long-on"],
+    "Bowler": ["Fine leg", "Third man", "Long-on", "Deep mid-wicket"],
+    "All-rounder": ["Mid-off", "Cover", "Long-off", "Point"],
+    "Wicket-keeper": ["Wicket-keeper"],
+}
+for _p in PLAYERS:
+    _seed = hash(_p["id"] + "enrich") % (2**32)
+    _r = random.Random(_seed)
+    s = _p["stats"]
+    # per-format batting avg
+    base_avg = s.get("avg", 25.0)
+    s["batting_avg"] = {"T20": round(base_avg, 2), "ODI": round(base_avg * _r.uniform(1.05, 1.3), 2), "Test": round(base_avg * _r.uniform(0.9, 1.2), 2)}
+    # per-format bowling avg (only meaningful for bowlers/all-rounders)
+    if s.get("wickets", 0) > 0:
+        bb = _r.uniform(22, 32)
+        s["bowling_avg"] = {"T20": round(bb, 2), "ODI": round(bb * _r.uniform(0.9, 1.15), 2), "Test": round(bb * _r.uniform(0.85, 1.1), 2)}
+    else:
+        s["bowling_avg"] = None
+    s["motm_count"] = _r.randint(3, 38)
+    s["mos_count"] = _r.randint(0, 6)
+    # Wicket-keeping stats (only meaningful for keepers)
+    if _p["role"] == "Wicket-keeper":
+        s["wk_stats"] = {
+            "dismissals": _r.randint(110, 220),
+            "stumpings": _r.randint(20, 55),
+            "catches_behind": _r.randint(90, 180),
+        }
+    else:
+        s["wk_stats"] = None
+    _p["speciality"] = _r.choice(_SPECIALITY.get(_p["role"], ["All-format pro"]))
+    _p["best_fielding_position"] = _r.choice(_FIELDING.get(_p["role"], ["Cover"]))
+
+
+# Umpires pool (ICC Elite Panel + domestic)
+UMPIRES = [
+    {"id": "u1", "name": "Kumar Dharmasena", "country": "Sri Lanka", "role": "Elite Panel"},
+    {"id": "u2", "name": "Richard Illingworth", "country": "England", "role": "Elite Panel"},
+    {"id": "u3", "name": "Nitin Menon", "country": "India", "role": "Elite Panel"},
+    {"id": "u4", "name": "Marais Erasmus", "country": "South Africa", "role": "Elite Panel"},
+    {"id": "u5", "name": "Paul Reiffel", "country": "Australia", "role": "Elite Panel"},
+    {"id": "u6", "name": "Chris Gaffaney", "country": "New Zealand", "role": "Elite Panel"},
+    {"id": "u7", "name": "Virender Sharma", "country": "India", "role": "Domestic"},
+    {"id": "u8", "name": "Anil Chaudhary", "country": "India", "role": "Domestic"},
+]
+
+def get_umpires_for_match(match_id: str):
+    """Deterministically assign 4 umpires for a match: 2 on-field, 1 TV, 1 reserve."""
+    rng = random.Random(hash(match_id + "umpires") % (2**32))
+    picks = rng.sample(UMPIRES, 4)
+    return {
+        "on_field": [{**picks[0], "role_in_match": "On-field"}, {**picks[1], "role_in_match": "On-field"}],
+        "tv_umpire": {**picks[2], "role_in_match": "TV Umpire"},
+        "reserve": {**picks[3], "role_in_match": "Reserve"},
+        "match_referee": {"name": "Javagal Srinath", "country": "India", "role_in_match": "Match Referee"},
+    }
+
+
+# Venues with records
+_VENUES = {
+    "Wankhede Stadium, Mumbai": {"capacity": 33108, "city": "Mumbai", "country": "India", "ends": ["Tata End", "Garware Pavilion End"], "avg_1st_innings": 172, "highest_total": "235/1", "highest_chased": 215, "pitch_type": "Batting-friendly, true bounce"},
+    "M. Chinnaswamy Stadium, Bengaluru": {"capacity": 40000, "city": "Bengaluru", "country": "India", "ends": ["Pavilion End", "BEML End"], "avg_1st_innings": 178, "highest_total": "263/5", "highest_chased": 226, "pitch_type": "Small ground, high-scoring"},
+    "Narendra Modi Stadium, Ahmedabad": {"capacity": 132000, "city": "Ahmedabad", "country": "India", "ends": ["Adani Pavilion End", "Reliance End"], "avg_1st_innings": 165, "highest_total": "233/3", "highest_chased": 211, "pitch_type": "Balanced, good for both"},
+    "M.A. Chidambaram Stadium, Chennai": {"capacity": 50000, "city": "Chennai", "country": "India", "ends": ["A Pavilion End", "V Pattabhiraman End"], "avg_1st_innings": 162, "highest_total": "211/4", "highest_chased": 206, "pitch_type": "Spin-friendly"},
+    "Eden Gardens, Kolkata": {"capacity": 66000, "city": "Kolkata", "country": "India", "ends": ["High Court End", "Pavilion End"], "avg_1st_innings": 168, "highest_total": "232/2", "highest_chased": 207, "pitch_type": "Dew-affected, chase-friendly"},
+    "Arun Jaitley Stadium, Delhi": {"capacity": 41842, "city": "Delhi", "country": "India", "ends": ["Pavilion End", "Gautam Gambhir Pavilion End"], "avg_1st_innings": 167, "highest_total": "231/4", "highest_chased": 209, "pitch_type": "True bounce, some help for seamers"},
+    "Sawai Mansingh Stadium, Jaipur": {"capacity": 30000, "city": "Jaipur", "country": "India", "ends": ["RCA Pavilion End", "Press Box End"], "avg_1st_innings": 172, "highest_total": "223/2", "highest_chased": 218, "pitch_type": "Flat, high-scoring"},
+}
+
+def get_venue_info(venue_name: str):
+    return _VENUES.get(venue_name, {"city": venue_name.split(",")[-1].strip() if "," in venue_name else venue_name, "country": "India", "pitch_type": "Balanced", "avg_1st_innings": 165})
+
+
+def get_player_venue_record(player_id: str, venue_name: str):
+    rng = random.Random(hash(player_id + venue_name) % (2**32))
+    matches = rng.randint(3, 18)
+    runs = rng.randint(80, 650)
+    return {
+        "matches": matches,
+        "runs": runs,
+        "avg": round(runs / max(matches - 1, 1), 2),
+        "highest": rng.randint(34, 115),
+        "sr": round(rng.uniform(118, 165), 2),
+        "wickets": rng.randint(0, 22),
+    }
+
+
+def get_player_vs_team_record(player_id: str, opponent_team_id: str):
+    rng = random.Random(hash(player_id + opponent_team_id + "vs") % (2**32))
+    matches = rng.randint(4, 22)
+    runs = rng.randint(120, 780)
+    return {
+        "matches": matches,
+        "runs": runs,
+        "avg": round(runs / max(matches - 2, 1), 2),
+        "highest": rng.randint(38, 128),
+        "sr": round(rng.uniform(118, 162), 2),
+        "wickets": rng.randint(0, 28),
+    }
+
+
+def get_playing_xi_with_stats(match_id: str):
+    """Final Playing XI for both teams with detailed match-context stats."""
+    match = get_match_by_id(match_id)
+    if not match:
+        return None
+    venue = match["venue"]
+
+    def build_side(team_id: str, opponent_team_id: str):
+        team = get_team(team_id)
+        squad = [p for p in PLAYERS if p["team_id"] == team_id]
+        rng = random.Random(hash(match_id + team_id + "xi") % (2**32))
+        if len(squad) < 5:
+            pool = squad + rng.sample([p for p in PLAYERS if p["team_id"] != team_id], 11 - len(squad))
+        else:
+            pool = squad + rng.sample([p for p in PLAYERS if p["team_id"] != team_id and p not in squad], max(0, 11 - len(squad)))
+        xi = pool[:11] if len(pool) >= 11 else pool
+        enriched = []
+        for p in xi:
+            enriched.append({
+                "id": p["id"], "name": p["name"], "country": p["country"], "role": p["role"],
+                "speciality": p.get("speciality"),
+                "best_fielding_position": p.get("best_fielding_position"),
+                "batting_style": p["batting_style"], "bowling_style": p["bowling_style"],
+                "career": {
+                    "matches": p["stats"]["matches"],
+                    "runs": p["stats"].get("runs"),
+                    "batting_avg": p["stats"].get("batting_avg"),
+                    "sr": p["stats"].get("sr"),
+                    "wickets": p["stats"].get("wickets"),
+                    "bowling_avg": p["stats"].get("bowling_avg"),
+                    "economy": p["stats"].get("economy"),
+                    "catches": p["stats"].get("catches"),
+                    "motm": p["stats"].get("motm_count"),
+                    "mos": p["stats"].get("mos_count"),
+                    "wk_stats": p["stats"].get("wk_stats"),
+                },
+                "at_venue": get_player_venue_record(p["id"], venue),
+                "vs_opponent": get_player_vs_team_record(p["id"], opponent_team_id),
+            })
+        # Captain & keeper assignment
+        cap_idx = 0
+        for i, x in enumerate(enriched):
+            if x["role"] == "Wicket-keeper":
+                x["is_keeper"] = True
+        enriched[cap_idx]["is_captain"] = True
+        return {"team": team, "playing_xi": enriched}
+
+    return {
+        "team_a": build_side(match["team_a"]["id"], match["team_b"]["id"]),
+        "team_b": build_side(match["team_b"]["id"], match["team_a"]["id"]),
+    }
+
+
 def get_team(tid):
+    return next((t for t in TEAMS if t["id"] == tid), None)
+
+
+def get_player(pid):
+    return next((p for p in PLAYERS if p["id"] == pid), None)
     return next((t for t in TEAMS if t["id"] == tid), None)
 
 def get_player(pid):

@@ -12,10 +12,12 @@ CricLive is a React Native Expo mobile-first cricket app for IPL 2026 and the IC
 ## Key Features Implemented (v1)
 - **Auth**: JWT email/password (register, login, me)
 - **Live matches**: Team scores, current batsmen at crease, bowler, RR/RRR, recent balls, win probability
-- **Match detail tabs**: Summary · Scorecard · Commentary · Stats (Manhattan, Partnerships) · Fantasy (Predicted XI + Impact Player) · Chat
+- **Match detail tabs**: Summary · Scorecard · **XI** · Commentary · Stats · Fantasy · Chat
+- **Summary tab now includes**: venue info card (capacity, pitch type, averages, highest total/chase, ends) and **Match Officials** (on-field umpires, TV umpire, reserve, match referee)
+- **XI tab (NEW)**: Final playing XI per team with captain/WK tags and expandable per-player cards showing — speciality, best fielding position, batting/bowling style, per-format batting avg (T20/ODI/Test), per-format bowling avg, Man-of-the-Match count, Man-of-the-Series count, catches, wicket-keeping stats (dismissals/stumpings/catches-behind) for keepers, **performance at this venue** (matches/runs/best/avg/SR/wickets) and **performance vs this opponent**
 - **Schedule**: Upcoming + Completed matches with alert setting
 - **Top performers**: Highest runs, most 6s, most 4s, best catches, most wickets
-- **Player profile**: Career stats + recent form bar chart
+- **Player profile**: Career stats + 10-innings recent-form bar chart
 - **Team profile**: Squad view
 - **Personalization**: Follow teams & players, personalized home feed
 - **Community**: Fan polls (with voting) + match chat rooms

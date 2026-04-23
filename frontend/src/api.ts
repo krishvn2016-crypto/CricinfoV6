@@ -34,6 +34,9 @@ export const matchesApi = {
   manhattan: (id: string) => api.get(`/matches/${id}/manhattan`),
   partnerships: (id: string) => api.get(`/matches/${id}/partnerships`),
   predictedXi: (id: string) => api.get(`/matches/${id}/predicted-xi`),
+  playingXi: (id: string) => api.get(`/matches/${id}/playing-xi`),
+  umpires: (id: string) => api.get(`/matches/${id}/umpires`),
+  venue: (name: string) => api.get(`/venues`, { params: { name } }),
 };
 
 export const playersApi = {
