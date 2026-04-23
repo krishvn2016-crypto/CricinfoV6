@@ -1,0 +1,46 @@
+{
+  "summary": "Comprehensive backend + frontend (Expo web preview) testing of CricLive app. 36/36 pytest backend tests passed (100%). Frontend mobile (390x844) flows verified end-to-end: home loads with 7 match cards + AI promo, match detail opens with all 6 tabs (summary/scorecard/commentary/stats/fantasy/chat), scorecard & chat render correctly, Ask AI returns a real Claude Sonnet 4.5 response about Virat Kohli's IPL average (38.67), community has 3 polls and voting works after auth, registration flow creates user and navigates to authed profile with logout button + Following sections. Auth, follow/unfollow, alerts, polls vote, chat persist, AI win-probability (sums to 100) and all match detail endpoints (manhattan, partnerships, predicted-xi) all functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/matches/{id} & /api/matches/{id}/scorecard", "issue": "Mock data inconsistency: for a live IPL match, match header shows MI 77/3 (12.5 ov) with 'CSK – Yet to bat' and target 198, but the scorecard endpoint returns innings1 total 324/5 (MI batting first?). Header score_a/score_b and scorecard innings totals should reconcile for demo credibility."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "match/[id] scorecard vs header", "issues": ["Score shown at top of match detail does not match scorecard innings totals (data-side issue in mock_data.py, surfaces in UI)."]}
+    ],
+    "react_native_issues": [
+      {"component": "global", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — cosmetic only."},
+      {"component": "Image", "issue": "Expo warning: 'Image: style.resizeMode is deprecated. Please use props.resizeMode' in expo logs — cosmetic only."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Fix mock_data so the live match's header score_a/score_b are consistent with scorecard innings1/innings2 totals to avoid demo confusion.",
+    "(Optional) Replace deprecated style.resizeMode on Image and props.pointerEvents with style.pointerEvents to silence RN warnings.",
+    "(Optional) Package versions flagged by Expo: @react-native-async-storage/async-storage 3.0.2 (expected 2.2.0), expo-font 55.0.6 (~14.0.11), react-native-svg 15.15.4 (15.12.1). Currently non-blocking but should be aligned before store submission."
+  ],
+  "critical_code_review_comments": [
+    "server.py (484 lines) is fine for now but approaching size where splitting routers (auth, matches, ai, community) would help.",
+    "/api/ai/ask does not require auth — acceptable for demo but consider rate-limiting in prod to prevent abuse of Emergent LLM key.",
+    "try_sportmonks result is fetched but never used (fallback always returns mock). Either remove the call (saves latency) or actually transform+return Sportmonks data when available.",
+    "get_current_user returns the user dict without filtering; response_model=UserOut filters at FastAPI layer for /auth/me but raw dict is used in other endpoints (harmless since _id is already excluded at fetch time). Good.",
+    "MongoDB _id properly excluded everywhere via projection {'_id': 0}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_backend.py (new)",
+    "/app/test_reports/pytest/pytest_results.xml (generated)"
+  ],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "100% of critical flows (home, match detail + all 6 tabs, AI ask, community polls vote, register→authed profile)"},
+  "seed_data_creation": "Registered ephemeral user uitest+<random>@cric.live via UI and testfan+<random>@cric.live via pytest. Posted one TEST_ prefixed chat message. No cleanup needed as IDs are random per run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL is EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env. All endpoints under /api prefix. Mock data IDs are deterministic - first live match from /api/matches/live is reusable. To test AI, allow ~5-10s timeout; it calls Claude Sonnet 4.5 via Emergent key. testIDs are present for all major interactive elements — see grep results in test report.",
+  "rca_of_issue": "No blocking issues. The only flagged item (scorecard/header score mismatch) is a mock-data coherence issue, not a functional defect — endpoints return structurally valid responses."
+}
