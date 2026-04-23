@@ -280,7 +280,9 @@ async def me(user=Depends(get_current_user)):
 
 @api_router.post("/auth/toggle-pro")
 async def toggle_pro(user=Depends(get_current_user)):
-    """Local-only Pro toggle (payments skipped). Flips is_pro for the current user."""
+    """DEV-ONLY endpoint: gated to admins in production. Payments flow goes through /api/payments/*."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Use the 5 AI queries pack via Razorpay to unlock more.")
     new_val = not user.get("is_pro", False)
     await db.users.update_one({"id": user["id"]}, {"$set": {"is_pro": new_val}})
     return {"is_pro": new_val}
@@ -776,11 +778,18 @@ async def verify_payment(data: PaymentVerify, user=Depends(get_current_user)):
         logger.warning(f"Razorpay signature verify failed: {e}")
         raise HTTPException(status_code=400, detail="Signature verification failed")
 
+    # Idempotency: only credit if order is not already paid
+    order = await db.orders.find_one({"order_id": data.order_id, "user_id": user["id"]})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("status") == "paid":
+        updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+        return {"status": "already_paid", "granted_queries": 0, "total_bonus": updated.get("ai_queries_bonus", 0)}
+
     await db.orders.update_one(
         {"order_id": data.order_id, "user_id": user["id"]},
         {"$set": {"payment_id": data.payment_id, "status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
     )
-    # Credit 5 AI queries
     await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_bonus": AI_PACK_QUERIES}})
     updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
     return {"status": "paid", "granted_queries": AI_PACK_QUERIES, "total_bonus": updated.get("ai_queries_bonus", 0)}

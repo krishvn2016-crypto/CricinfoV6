@@ -10,7 +10,14 @@ CricLive is a React Native Expo mobile-first cricket app for IPL 2026 and the IC
 - **Cricket Data**: Sportmonks Cricket API (token configured) with a rich MOCKED fallback dataset for demo/offline
 
 ## Key Features Implemented (v1)
-- **Auth**: JWT email/password (register, login, me)
+- **BETA badge** visible on Home top bar (next to "CricLive" title) and About page
+- **7-day free trial** — every new user gets `is_pro=true` for 7 days from registration; `/api/auth/me` returns `trial_remaining_days`
+- **Razorpay dummy payments** (TEST mode — key `rzp_test_SgiBXLxqFXNgxi`): purchase "5 AI queries for ₹100" via `POST /api/payments/create-order` + `POST /api/payments/verify`. Verify is **idempotent** (won't double-credit on replay). Frontend uses Razorpay Checkout JS on web via `src/payments.ts` and Linking fallback on native.
+- **Support contact**: email `CricketRelgion@gmail.com`, address `Mumbai, India`
+- **About page** (`/about`): app info, features list, contact info, quick links to Terms & Feedback
+- **Terms & Conditions page** (`/terms`): 10-section legal boilerplate covering acceptance, beta status, trial, payments, user content, IP, personal data, liability, changes, contact
+- **Feedback page** (`/feedback`): 5-star rating + message + optional email; submissions stored in `feedback` collection and readable by admins via `/api/admin/feedback`
+- **Auth**: JWT email/password (register, login, me) with trial fields; `/api/auth/toggle-pro` gated to admins only (non-admin returns 403 prompting Razorpay purchase)
 - **Live matches**: Team scores, current batsmen at crease, bowler, RR/RRR, recent balls, win probability
 - **Match detail tabs**: Summary · Scorecard · XI · Commentary (with filter chips: All/Boundaries/Wickets/Sixes/Fours/Dots and rich per-ball shot-type + length + line + wagon-zone badges) · Stats (Manhattan + Partnership Timelines showing ball-by-ball progression with boundaries flagged in color) · Fantasy · Chat
 - **Summary tab now includes**: venue info card (capacity, pitch type, averages, highest total/chase, ends) and **Match Officials** (on-field umpires, TV umpire, reserve, match referee)
