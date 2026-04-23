@@ -17,6 +17,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+import razorpay
 
 import mock_data
 
@@ -35,6 +36,13 @@ JWT_EXPIRE_MINUTES = int(os.environ.get('JWT_EXPIRE_MINUTES', '43200'))
 SPORTMONKS_API_KEY = os.environ.get('SPORTMONKS_API_KEY', '')
 SPORTMONKS_BASE = os.environ.get('SPORTMONKS_BASE_URL', 'https://cricket.sportmonks.com/api/v2.0')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID', '')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET', '')
+APP_VERSION = os.environ.get('APP_VERSION', '1.0.0-beta')
+FREE_TRIAL_DAYS = int(os.environ.get('FREE_TRIAL_DAYS', '7'))
+SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL', 'support@example.com')
+
+razorpay_client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)) if RAZORPAY_KEY_ID else None
 
 app = FastAPI(title="Cricket Live API")
 api_router = APIRouter(prefix="/api")
@@ -93,6 +101,22 @@ class PollVoteRequest(BaseModel):
 class ChatMessageCreate(BaseModel):
     match_id: str
     message: str
+
+
+class PaymentOrderCreate(BaseModel):
+    pack: str = "ai_5_pack"  # future-proof for more packs
+
+
+class PaymentVerify(BaseModel):
+    order_id: str
+    payment_id: str
+    signature: str
+
+
+class FeedbackCreate(BaseModel):
+    rating: int  # 1-5
+    message: str
+    email: Optional[str] = None
 
 
 class NewsCreate(BaseModel):
@@ -182,28 +206,45 @@ async def try_sportmonks(path: str, params: dict = None) -> Optional[dict]:
 # =========================
 # Auth Endpoints
 # =========================
+def is_pro_active(u: Dict[str, Any]) -> bool:
+    """Pro = paid flag OR active trial OR admin."""
+    if u.get("is_admin"): return True
+    if u.get("is_pro"): return True
+    trial_end = u.get("trial_ends_at")
+    if trial_end:
+        try:
+            return datetime.fromisoformat(trial_end.replace('Z', '+00:00')) > datetime.now(timezone.utc)
+        except Exception:
+            return False
+    return False
+
+
 @api_router.post("/auth/register", response_model=AuthResponse)
 async def register(data: UserRegister):
     existing = await db.users.find_one({"email": data.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     user_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    trial_end = now + timedelta(days=FREE_TRIAL_DAYS)
     user_doc = {
         "id": user_id,
         "email": data.email.lower(),
         "name": data.name,
         "password": hash_password(data.password),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
+        "trial_ends_at": trial_end.isoformat(),
         "following_teams": [],
         "following_players": [],
         "is_admin": False,
         "is_pro": False,
         "ai_queries_today": 0,
-        "ai_queries_date": datetime.now(timezone.utc).date().isoformat(),
+        "ai_queries_date": now.date().isoformat(),
+        "ai_queries_bonus": 0,
     }
     await db.users.insert_one(user_doc)
     token = create_token(user_id)
-    return AuthResponse(token=token, user=UserOut(id=user_id, email=data.email.lower(), name=data.name, is_admin=False, is_pro=False))
+    return AuthResponse(token=token, user=UserOut(id=user_id, email=data.email.lower(), name=data.name, is_admin=False, is_pro=True))
 
 
 @api_router.post("/auth/login", response_model=AuthResponse)
@@ -214,16 +255,27 @@ async def login(data: UserLogin):
     token = create_token(user["id"])
     return AuthResponse(token=token, user=UserOut(
         id=user["id"], email=user["email"], name=user["name"],
-        is_admin=user.get("is_admin", False), is_pro=user.get("is_pro", False),
+        is_admin=user.get("is_admin", False), is_pro=is_pro_active(user),
     ))
 
 
-@api_router.get("/auth/me", response_model=UserOut)
+@api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
-    return UserOut(
-        id=user["id"], email=user["email"], name=user["name"],
-        is_admin=user.get("is_admin", False), is_pro=user.get("is_pro", False),
-    )
+    trial_end = user.get("trial_ends_at")
+    trial_remaining_days = 0
+    if trial_end and not user.get("is_pro") and not user.get("is_admin"):
+        try:
+            diff = datetime.fromisoformat(trial_end.replace('Z', '+00:00')) - datetime.now(timezone.utc)
+            trial_remaining_days = max(0, diff.days + (1 if diff.seconds > 0 else 0))
+        except Exception: pass
+    return {
+        "id": user["id"], "email": user["email"], "name": user["name"],
+        "is_admin": user.get("is_admin", False),
+        "is_pro": is_pro_active(user),
+        "trial_remaining_days": trial_remaining_days,
+        "ai_queries_bonus": user.get("ai_queries_bonus", 0),
+        "ai_queries_today": user.get("ai_queries_today", 0),
+    }
 
 
 @api_router.post("/auth/toggle-pro")
@@ -453,21 +505,30 @@ FREE_DAILY_AI_LIMIT = 5
 
 @api_router.post("/ai/ask")
 async def ask_ai(data: AskAIRequest, user: Optional[Dict[str, Any]] = Depends(get_user_optional)):
-    # Rate limit: unauthenticated gets 3, free tier 5/day, pro unlimited
     if user:
         today = datetime.now(timezone.utc).date().isoformat()
         if user.get("ai_queries_date") != today:
             await db.users.update_one({"id": user["id"]}, {"$set": {"ai_queries_date": today, "ai_queries_today": 0}})
             user["ai_queries_today"] = 0
+        # If pro/admin/trial-active: unlimited
+        # Else: consume from ai_queries_bonus first, then from daily free limit
+        pro = is_pro_active(user)
+        bonus = user.get("ai_queries_bonus", 0)
         used_today = user.get("ai_queries_today", 0)
-        if not user.get("is_pro") and used_today >= FREE_DAILY_AI_LIMIT:
-            return {
-                "answer": f"You've reached your daily free limit of {FREE_DAILY_AI_LIMIT} questions. Upgrade to Pro for unlimited Ask AI.",
-                "query": data.query,
-                "limit_reached": True,
-                "is_pro": False,
-            }
-        await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_today": 1}})
+        if not pro:
+            if bonus > 0:
+                await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_bonus": -1}})
+                bonus -= 1
+            elif used_today >= FREE_DAILY_AI_LIMIT:
+                return {
+                    "answer": f"You've reached your daily free limit of {FREE_DAILY_AI_LIMIT} questions. Buy 5 more for ₹100 or upgrade to Pro.",
+                    "query": data.query,
+                    "limit_reached": True,
+                    "is_pro": False,
+                    "ai_queries_bonus": 0,
+                }
+            else:
+                await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_today": 1}})
 
     context = ""
     if data.match_id:
@@ -489,9 +550,9 @@ async def ask_ai(data: AskAIRequest, user: Optional[Dict[str, Any]] = Depends(ge
         ).with_model("anthropic", "claude-sonnet-4-5").with_params(max_tokens=500)
         answer = await chat.send_message(UserMessage(text=data.query + context))
         remaining = None
-        if user and not user.get("is_pro"):
-            remaining = max(0, FREE_DAILY_AI_LIMIT - (user.get("ai_queries_today", 0) + 1))
-        return {"answer": answer, "query": data.query, "remaining_free": remaining, "is_pro": user.get("is_pro", False) if user else False}
+        if user and not is_pro_active(user):
+            remaining = max(0, FREE_DAILY_AI_LIMIT - (user.get("ai_queries_today", 0) + (0 if bonus > 0 else 1)))
+        return {"answer": answer, "query": data.query, "remaining_free": remaining, "is_pro": is_pro_active(user) if user else False, "ai_queries_bonus": bonus if user else 0}
     except Exception as e:
         logger.error(f"AI error: {e}")
         return {"answer": f"I'm having trouble reaching my cricket brain right now ({str(e)[:80]}). Please try again.", "query": data.query, "error": True}
@@ -662,6 +723,105 @@ async def admin_stats(admin=Depends(require_admin)):
 async def admin_toggle_featured(data: FeaturedToggle, admin=Depends(require_admin)):
     await db.featured.update_one({"match_id": data.match_id}, {"$set": {"match_id": data.match_id, "featured": data.featured, "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
     return {"status": "ok"}
+
+
+# =========================
+# Payments — Razorpay (5 AI queries for ₹100)
+# =========================
+AI_PACK_PRICE_PAISE = 100 * 100  # ₹100 = 10000 paise
+AI_PACK_QUERIES = 5
+
+
+@api_router.get("/payments/config")
+async def payments_config():
+    return {
+        "key_id": RAZORPAY_KEY_ID,
+        "pack": {"name": "5 AI Queries", "price_paise": AI_PACK_PRICE_PAISE, "price_inr": AI_PACK_PRICE_PAISE / 100, "queries": AI_PACK_QUERIES},
+        "enabled": razorpay_client is not None,
+    }
+
+
+@api_router.post("/payments/create-order")
+async def create_order(data: PaymentOrderCreate, user=Depends(get_current_user)):
+    if not razorpay_client:
+        raise HTTPException(status_code=500, detail="Razorpay not configured")
+    order = razorpay_client.order.create({
+        "amount": AI_PACK_PRICE_PAISE,
+        "currency": "INR",
+        "payment_capture": 1,
+        "notes": {"user_id": user["id"], "pack": data.pack},
+    })
+    await db.orders.insert_one({
+        "order_id": order["id"],
+        "user_id": user["id"],
+        "amount": AI_PACK_PRICE_PAISE,
+        "pack": data.pack,
+        "status": "created",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"order_id": order["id"], "amount": order["amount"], "currency": order["currency"], "key_id": RAZORPAY_KEY_ID, "name": user["name"], "email": user["email"]}
+
+
+@api_router.post("/payments/verify")
+async def verify_payment(data: PaymentVerify, user=Depends(get_current_user)):
+    if not razorpay_client:
+        raise HTTPException(status_code=500, detail="Razorpay not configured")
+    try:
+        razorpay_client.utility.verify_payment_signature({
+            "razorpay_order_id": data.order_id,
+            "razorpay_payment_id": data.payment_id,
+            "razorpay_signature": data.signature,
+        })
+    except Exception as e:
+        logger.warning(f"Razorpay signature verify failed: {e}")
+        raise HTTPException(status_code=400, detail="Signature verification failed")
+
+    await db.orders.update_one(
+        {"order_id": data.order_id, "user_id": user["id"]},
+        {"$set": {"payment_id": data.payment_id, "status": "paid", "paid_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    # Credit 5 AI queries
+    await db.users.update_one({"id": user["id"]}, {"$inc": {"ai_queries_bonus": AI_PACK_QUERIES}})
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    return {"status": "paid", "granted_queries": AI_PACK_QUERIES, "total_bonus": updated.get("ai_queries_bonus", 0)}
+
+
+# =========================
+# Feedback
+# =========================
+@api_router.post("/feedback")
+async def submit_feedback(data: FeedbackCreate, user: Optional[Dict[str, Any]] = Depends(get_user_optional)):
+    doc = {
+        "id": str(uuid.uuid4()),
+        "rating": max(1, min(5, data.rating)),
+        "message": data.message,
+        "email": (user or {}).get("email") or data.email,
+        "user_id": (user or {}).get("id"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.feedback.insert_one(doc.copy())
+    return {"status": "received", "id": doc["id"]}
+
+
+@api_router.get("/admin/feedback")
+async def admin_list_feedback(admin=Depends(require_admin)):
+    rows = await db.feedback.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return {"feedback": rows}
+
+
+# =========================
+# Meta / About
+# =========================
+@api_router.get("/meta")
+async def meta():
+    return {
+        "app": "CricLive",
+        "version": APP_VERSION,
+        "beta": True,
+        "free_trial_days": FREE_TRIAL_DAYS,
+        "support_email": SUPPORT_EMAIL,
+        "address": "Mumbai, India",
+    }
 
 
 # =========================

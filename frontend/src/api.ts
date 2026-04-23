@@ -76,6 +76,16 @@ export const miscApi = {
   news: () => api.get('/news'),
   // Pro toggle
   togglePro: () => api.post('/auth/toggle-pro'),
+  // Feedback
+  submitFeedback: (rating: number, message: string, email?: string) =>
+    api.post('/feedback', { rating, message, email }),
+  // Meta
+  meta: () => api.get('/meta'),
+  // Payments
+  paymentsConfig: () => api.get('/payments/config'),
+  createOrder: (pack: string = 'ai_5_pack') => api.post('/payments/create-order', { pack }),
+  verifyPayment: (order_id: string, payment_id: string, signature: string) =>
+    api.post('/payments/verify', { order_id, payment_id, signature }),
 };
 
 export const adminApi = {

@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { colors, fonts, spacing, radius } from '../../src/theme';
 import { useAuth } from '../../src/auth';
 import { miscApi } from '../../src/api';
+import { buyAIPack } from '../../src/payments';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -111,6 +112,17 @@ export default function ProfileScreen() {
         </View>
       ) : null}
 
+      <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
+        <TouchableOpacity style={styles.packCard} onPress={purchaseAIPack} testID="buy-ai-pack-btn">
+          <View style={styles.packIcon}><Ionicons name="flash" size={18} color="#fff" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.packTitle}>5 Ask AI queries · ₹100</Text>
+            <Text style={styles.packSub}>Secure payment via Razorpay (test mode)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Following</Text>
         {loading ? (
@@ -148,9 +160,10 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Settings</Text>
-        <Row icon="notifications-outline" label="Push notifications" />
-        <Row icon="shield-checkmark-outline" label="Privacy" />
-        <Row icon="information-circle-outline" label="About CricLive" />
+        <Row icon="notifications-outline" label="Notifications" onPress={() => router.push('/notifications')} />
+        <Row icon="chatbox-ellipses-outline" label="Send feedback" onPress={() => router.push('/feedback')} />
+        <Row icon="information-circle-outline" label="About CricLive" onPress={() => router.push('/about')} />
+        <Row icon="document-text-outline" label="Terms & Conditions" onPress={() => router.push('/terms')} />
       </View>
 
       <TouchableOpacity
@@ -164,9 +177,9 @@ export default function ProfileScreen() {
   );
 }
 
-function Row({ icon, label }: { icon: any; label: string }) {
+function Row({ icon, label, onPress }: { icon: any; label: string; onPress?: () => void }) {
   return (
-    <TouchableOpacity style={styles.row}>
+    <TouchableOpacity style={styles.row} onPress={onPress}>
       <Ionicons name={icon} size={20} color={colors.textSecondary} />
       <Text style={styles.rowLabel}>{label}</Text>
       <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
@@ -218,4 +231,8 @@ const styles = StyleSheet.create({
   proAction: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.wicket },
   adminCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.bgSecondary, borderRadius: radius.lg },
   adminTxt: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
+  packCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, backgroundColor: '#F3F4F6', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
+  packIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFB020', alignItems: 'center', justifyContent: 'center' },
+  packTitle: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
+  packSub: { fontFamily: fonts.body, fontSize: 10, color: colors.textTertiary, marginTop: 2 },
 });

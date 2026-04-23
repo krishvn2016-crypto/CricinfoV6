@@ -11,8 +11,12 @@ import asyncio
 import pytest
 import requests
 import websockets
+from datetime import datetime, timezone, timedelta
+from pymongo import MongoClient
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://runs-analytics.preview.emergentagent.com").rstrip("/")
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.environ.get("DB_NAME", "cricket_app")
 API = f"{BASE_URL}/api"
 # Derive WS URL from HTTPS/HTTP base
 WS_BASE = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")
@@ -74,10 +78,28 @@ def test_register_free_user(session):
     r = session.post(f"{API}/auth/register", json={"email": FREE_EMAIL, "password": FREE_PASSWORD, "name": FREE_NAME})
     assert r.status_code == 200, r.text
     d = r.json()
-    assert d["user"]["is_pro"] is False
+    # Note: new users get a 7-day trial -> is_pro is True during trial by design (iteration5).
+    # We immediately backdate trial_ends_at + clear is_pro to simulate an expired-trial free user
+    # so the legacy AI-rate-limit tests below keep working.
     assert d["user"]["is_admin"] is False
     state["free_token"] = d["token"]
     state["free_user_id"] = d["user"]["id"]
+
+    cli = MongoClient(MONGO_URL)
+    try:
+        past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        res = cli[DB_NAME]["users"].update_one(
+            {"id": state["free_user_id"]},
+            {"$set": {"trial_ends_at": past, "is_pro": False, "ai_queries_today": 0, "ai_queries_bonus": 0,
+                      "ai_queries_date": datetime.now(timezone.utc).strftime("%Y-%m-%d")}},
+        )
+        assert res.matched_count == 1
+    finally:
+        cli.close()
+
+    # Confirm is_pro now False via /auth/me
+    me = session.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {state['free_token']}"})
+    assert me.status_code == 200 and me.json()["is_pro"] is False
 
 
 def test_toggle_pro_requires_auth(session):

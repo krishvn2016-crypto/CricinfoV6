@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 5 (Razorpay dummy payments + Beta label + 7-day free trial + About/Terms/Feedback pages) verified end-to-end. Added /app/backend/tests/test_iteration5.py with 13 targeted tests covering: /api/meta fields, trial semantics on register & /auth/me (trial_ends_at, trial_remaining_days 6-7, is_pro=true, ai_queries_bonus/ai_queries_today), /api/payments/config (rzp_test_SgiBXLxqFXNgxi, price_paise=10000, queries=5, enabled=true), /api/payments/create-order auth-gated + amount=10000 + currency=INR + real Razorpay order_ created, /api/payments/verify with fake signature returns 400 (expected), /api/feedback anon+auth with user_id+email attachment, /api/admin/feedback admin-only (200) vs non-admin (403), AI unlimited during trial, and AI 5/day limit enforced after backdating trial_ends_at in Mongo. Full regression: 77/77 PASSED (43 test_backend.py + 21 test_iteration3.py + 13 test_iteration5.py). The trial feature broke one iteration3 assertion (register no longer returns is_pro=False — by design now) and 5 cascaded failures; fixed test_iteration3.test_register_free_user to backdate trial_ends_at in Mongo so the legacy free-user flow still exercises the correct code path. No business logic changes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/toggle-pro", "issue": "Still self-serve Pro toggle for any logged-in user. Acceptable for demo but should be removed/guarded before real launch now that Razorpay is wired."},
+      {"endpoint": "GET /api/auth/me", "issue": "trial_remaining_days rounding: uses days+1 when seconds>0, so a user created milliseconds ago can see 7. Test accepts 6 or 7; flag for product clarification."},
+      {"endpoint": "POST /api/payments/verify", "issue": "No idempotency guard — replaying the same valid (order_id, payment_id, signature) would credit +5 bonus each time because it does $inc unconditionally. Consider checking orders.status=='paid' before crediting."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/iteration5_results.xml"
+  ],
+  "action_items": [
+    "Consider: make /api/payments/verify idempotent (only credit ai_queries_bonus if order.status != 'paid' before update).",
+    "Before production: remove/gate /api/auth/toggle-pro now that real Razorpay flow works.",
+    "Optional: return trial_ends_at (ISO) in /api/auth/me in addition to trial_remaining_days so the UI can render a precise countdown."
+  ],
+  "critical_code_review_comments": [
+    "server.py line ~784: payments/verify unconditionally $inc's ai_queries_bonus by 5 — replaying same signature verification success would double-credit. Guard with status check.",
+    "server.py line 269: trial_remaining_days = max(0, diff.days + (1 if diff.seconds > 0 else 0)) — off-by-one can yield 8 when FREE_TRIAL_DAYS=7 at t=0; currently caps at 7 in happy path but the +1 is fragile.",
+    "server.py line ~513: is_pro_active(user) evaluates trial via datetime parsing on every /ai/ask — fine for now but cache on the user doc or rely on is_pro flag maintained by a background job for scale."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5.py (NEW — 13 tests for meta / trial / payments / feedback / AI trial vs expired-trial)",
+    "/app/backend/tests/test_iteration3.py (fixture fix: backdate trial_ends_at via Mongo after register so legacy free-user rate-limit tests still run against a genuine non-pro user)"
+  ],
+  "success_rate": {"backend": "100% (77/77)", "frontend": "not tested per request"},
+  "seed_data_creation": "Ephemeral per run: admin (pre-seeded), freefan+<uuid>@cric.live (iteration3), trial+<uuid>@cric.live (iteration5 trial user), expired+<uuid>@cric.live (iteration5 expired-trial simulation), notif+<uuid>@cric.live, several TEST_ feedback rows, 1 TEST_Admin News (created+deleted), 1 TEST_ admin poll, 1 fake Razorpay order_* from create-order. Nothing production-seeded was modified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Razorpay is wired with real rzp_test_SgiBXLxqFXNgxi test keys — POST /api/payments/create-order will actually call Razorpay API and create a real order_xxx id (test mode, no charges). /api/payments/verify is expected to 400 for any fake signature (this is correct behaviour and covered). New-user 7-day trial means `is_pro=true` immediately after registration — if older tests expect register->is_pro=false they need to either (a) accept True during trial, or (b) backdate trial_ends_at in Mongo as done in test_iteration3.test_register_free_user. WebSocket path is /api/ws/live/{match_id}. Admin: admin@cric.live / admin1234 (seeded on every startup).",
+  "rca_of_issue": "Regression noticed during full run: 6 iteration3 tests failed because new-user trial flips is_pro to true on register, invalidating the old assumption `assert is_pro is False`. Root cause = intentional product change (FREE_TRIAL_DAYS=7). Mitigation = after register, backdate trial_ends_at and clear is_pro via a direct Mongo update so the remaining free-tier tests keep exercising the rate-limit code path. No server.py change needed."
+}

@@ -53,7 +53,10 @@ export default function HomeScreen() {
       <View style={styles.topBar}>
         <View>
           <Text style={styles.greet}>{user ? `Hi, ${user.name.split(' ')[0]}` : 'Welcome'}</Text>
-          <Text style={styles.appTitle}>CricLive</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.appTitle}>CricLive</Text>
+            <View style={styles.betaBadge}><Text style={styles.betaTxt}>BETA</Text></View>
+          </View>
         </View>
         <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/notifications')} testID="bell-btn">
           <Ionicons name="notifications-outline" size={26} color={colors.text} />
@@ -123,6 +126,8 @@ const styles = StyleSheet.create({
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   greet: { fontFamily: fonts.body, fontSize: 13, color: colors.textTertiary },
   appTitle: { fontFamily: fonts.headingBlack, fontSize: 28, color: colors.text, letterSpacing: -1 },
+  betaBadge: { backgroundColor: '#FFB020', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 4 },
+  betaTxt: { fontFamily: fonts.bodyBold, fontSize: 9, color: '#fff', letterSpacing: 1 },
   avatarBtn: { padding: 4 },
   hero: {
     marginHorizontal: spacing.lg,

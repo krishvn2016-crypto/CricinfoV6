@@ -40,6 +40,9 @@ export default function RootLayout() {
           <Stack.Screen name="team/[id]" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="admin" />
+          <Stack.Screen name="about" />
+          <Stack.Screen name="terms" />
+          <Stack.Screen name="feedback" />
         </Stack>
       </AuthProvider>
     </SafeAreaProvider>
