@@ -73,7 +73,7 @@ export default function MatchDetail() {
   useEffect(() => {
     if (!id || !match || match.status !== 'live') return;
     const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    const wsUrl = backendUrl.replace(/^https?/, backendUrl.startsWith('https') ? 'wss' : 'ws') + `/ws/live/${id}`;
+    const wsUrl = backendUrl.replace(/^https?/, backendUrl.startsWith('https') ? 'wss' : 'ws') + `/api/ws/live/${id}`;
     let ws: WebSocket | null = null;
     try {
       ws = new WebSocket(wsUrl);

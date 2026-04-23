@@ -668,9 +668,9 @@ async def admin_toggle_featured(data: FeaturedToggle, admin=Depends(require_admi
 
 
 # =========================
-# WebSocket for live score updates
+# WebSocket for live score updates (mounted under /api so k8s ingress routes to backend)
 # =========================
-@app.websocket("/ws/live/{match_id}")
+@app.websocket("/api/ws/live/{match_id}")
 async def ws_live(ws: WebSocket, match_id: str):
     await ws.accept()
     try:

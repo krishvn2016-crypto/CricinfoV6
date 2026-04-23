@@ -1,0 +1,39 @@
+{
+  "summary": "Re-verified WebSocket fix after main agent moved /ws/live/{match_id} -> /api/ws/live/{match_id}. Updated both WS URLs in tests/test_iteration3.py from WS_BASE/ws/live/... to WS_BASE/api/ws/live/... and ran the full regression. Result: 64/64 PASSED (43 in test_backend.py + 21 in test_iteration3.py). Both previously-failing WS tests now pass over the public preview URL (wss://runs-analytics.preview.emergentagent.com/api/ws/live/m_live_1) — streams >=3 structured messages with match_id + score{runs,wickets,overs,balls,rr} + last_ball{runs,desc}; bad match-id path returns an {error:...} payload and closes gracefully. No regressions introduced by the route move.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/toggle-pro", "issue": "Still unauthenticated-togglable by any logged-in user (by design per user request / payments skipped). Flag before production."},
+      {"endpoint": "GET /api/news, GET /api/notifications", "issue": "Seed-on-empty still present (not addressed this iteration). Not blocking."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_backend.py",
+    "/app/test_reports/pytest/iteration4_results.xml"
+  ],
+  "action_items": [
+    "No outstanding bugs. The WS fix is verified end-to-end over the public ingress URL.",
+    "Before production: harden /api/auth/toggle-pro (currently self-serve Pro), convert deprecated @app.on_event('startup') admin seed to lifespan context manager, and move news/notifications seeding out of the GET handlers into the startup seeder."
+  ],
+  "critical_code_review_comments": [
+    "server.py WS loop still sleeps 2s per ball — for long innings the socket stays open minutes; consider heartbeat/max duration/ disconnect detection.",
+    "Admin seeding via @app.on_event('startup') is deprecated (FastAPI 0.109+); migrate to lifespan.",
+    "server.py still sets os.environ['ANTHROPIC_API_KEY']=EMERGENT_LLM_KEY as a cosmetic fallback — remove or document to avoid masking misconfig."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (changed WS_BASE/ws/live/... -> WS_BASE/api/ws/live/... in the two WebSocket tests so they hit the new ingress-routed path)"
+  ],
+  "success_rate": {"backend": "100% (64/64)", "frontend": "not tested per request"},
+  "seed_data_creation": "Same ephemeral users as iteration 3 — admin (pre-seeded by backend startup), freefan+<uuid>@cric.live, notif+<uuid>@cric.live, one TEST_Admin News (created then deleted in the cleanup test), one TEST_ admin poll.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "WebSocket is now registered as @app.websocket('/api/ws/live/{match_id}') in /app/backend/server.py (line 673) and the ingress routes /api/* to backend:8001, so wss://<preview>/api/ws/live/<match_id> works. Frontend in /app/frontend/app/match/[id].tsx should connect to ${EXPO_PUBLIC_BACKEND_URL.replace('http','ws')}/api/ws/live/<id>. If a future regression loses the /api prefix on the WS route, ingress will return 502/403 and both iteration3 WS tests will fail again (reproduction: asyncio.run(websockets.connect('wss://runs-analytics.preview.emergentagent.com/ws/live/m_live_1'))).",
+  "rca_of_issue": "Previous RCA stands and has been mitigated. Root cause was that the websocket was registered on `app` (path /ws/live/{match_id}) and the preview K8s ingress only proxies /api/* to backend:8001 — non-/api paths go to Expo:3000 which cannot handle the upgrade (502). Fix applied by main agent: re-registered the endpoint as @app.websocket('/api/ws/live/{match_id}') and updated the frontend URL builder. Verified by running the same 2 tests against the public wss URL — both PASS; streaming is stable (>=3 messages) and invalid match id returns a JSON error payload."
+}

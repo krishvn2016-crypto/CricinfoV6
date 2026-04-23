@@ -284,7 +284,7 @@ def test_admin_delete_news_cleanup(session):
 # ===================== WebSocket live score =====================
 @pytest.mark.asyncio
 async def test_websocket_live_score_stream():
-    url = f"{WS_BASE}/ws/live/m_live_1"
+    url = f"{WS_BASE}/api/ws/live/m_live_1"
     messages = []
     try:
         async with websockets.connect(url, open_timeout=10, close_timeout=5) as ws:
@@ -313,7 +313,7 @@ async def test_websocket_live_score_stream():
 
 @pytest.mark.asyncio
 async def test_websocket_bad_match_returns_error():
-    url = f"{WS_BASE}/ws/live/does_not_exist_xyz"
+    url = f"{WS_BASE}/api/ws/live/does_not_exist_xyz"
     try:
         async with websockets.connect(url, open_timeout=10) as ws:
             msg = await asyncio.wait_for(ws.recv(), timeout=5)
