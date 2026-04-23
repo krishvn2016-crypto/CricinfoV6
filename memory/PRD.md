@@ -12,12 +12,12 @@ CricLive is a React Native Expo mobile-first cricket app for IPL 2026 and the IC
 ## Key Features Implemented (v1)
 - **Auth**: JWT email/password (register, login, me)
 - **Live matches**: Team scores, current batsmen at crease, bowler, RR/RRR, recent balls, win probability
-- **Match detail tabs**: Summary · Scorecard · **XI** · Commentary · Stats · Fantasy · Chat
+- **Match detail tabs**: Summary · Scorecard · XI · Commentary (with filter chips: All/Boundaries/Wickets/Sixes/Fours/Dots and rich per-ball shot-type + length + line + wagon-zone badges) · Stats (Manhattan + Partnership Timelines showing ball-by-ball progression with boundaries flagged in color) · Fantasy · Chat
 - **Summary tab now includes**: venue info card (capacity, pitch type, averages, highest total/chase, ends) and **Match Officials** (on-field umpires, TV umpire, reserve, match referee)
 - **XI tab (NEW)**: Final playing XI per team with captain/WK tags and expandable per-player cards showing — speciality, best fielding position, batting/bowling style, per-format batting avg (T20/ODI/Test), per-format bowling avg, Man-of-the-Match count, Man-of-the-Series count, catches, wicket-keeping stats (dismissals/stumpings/catches-behind) for keepers, **performance at this venue** (matches/runs/best/avg/SR/wickets) and **performance vs this opponent**
 - **Schedule**: Upcoming + Completed matches with alert setting
 - **Top performers**: Highest runs, most 6s, most 4s, best catches, most wickets
-- **Player profile**: Career stats + 10-innings recent-form bar chart
+- **Player profile (unified)**: achievement cards (MoTM/MoS/Catches), headline stats, per-format batting average (T20/ODI/Test), per-format bowling average, wicket-keeping stats for keepers, 10-innings recent-form bar chart, performance at top 5 venues, head-to-head vs top 6 opposing teams
 - **Team profile**: Squad view
 - **Personalization**: Follow teams & players, personalized home feed
 - **Community**: Fan polls (with voting) + match chat rooms

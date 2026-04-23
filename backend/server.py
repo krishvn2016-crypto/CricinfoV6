@@ -301,7 +301,7 @@ async def player_detail(player_id: str):
     recent_form = [random.randint(2, 98) for _ in range(10)]
 
     # Top venues performance
-    top_venue_names = ["Wankhede Stadium, Mumbai", "M. Chinnaswamy Stadium, Bengaluru", "Eden Gardens, Kolkata", "M.A. Chidambaram Stadium, Chennai", "Narendra Modi Stadium, Ahmedabad"]
+    top_venue_names = list(mock_data._VENUES.keys())[:5]
     top_venues = [{"venue": v, **mock_data.get_player_venue_record(player_id, v)} for v in top_venue_names]
 
     # Performance vs top opposing teams (excluding own team)

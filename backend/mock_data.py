@@ -226,10 +226,6 @@ def get_team(tid):
 
 def get_player(pid):
     return next((p for p in PLAYERS if p["id"] == pid), None)
-    return next((t for t in TEAMS if t["id"] == tid), None)
-
-def get_player(pid):
-    return next((p for p in PLAYERS if p["id"] == pid), None)
 
 
 def _ball_outcome():
