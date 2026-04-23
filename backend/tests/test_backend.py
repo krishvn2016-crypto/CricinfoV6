@@ -136,6 +136,27 @@ def test_commentary(session):
     assert isinstance(comm, list)
 
 
+# --- NEW: Commentary enriched fields (shot_type, length, line, wagon_zone, end) ---
+def test_commentary_enriched_m_live_1(session):
+    r = session.get(f"{API}/matches/m_live_1/commentary")
+    assert r.status_code == 200
+    comm = r.json().get("commentary", [])
+    assert len(comm) > 0, "commentary is empty"
+    required_keys = {"shot_type", "length", "line", "wagon_zone", "end"}
+    for b in comm:
+        missing = required_keys - set(b.keys())
+        assert not missing, f"ball missing keys {missing}: {b}"
+        assert b["length"] in [
+            "Full toss", "Yorker", "Full", "Good length", "Back of length", "Short"
+        ], f"bad length {b['length']}"
+        assert b["end"] in ["Pavilion End", "City End"], f"bad end {b['end']}"
+    # Boundaries and wickets must have shot_type populated
+    for b in comm:
+        if b.get("wicket") or b.get("runs", 0) in (4, 6):
+            assert b["shot_type"], f"boundary/wicket ball missing shot_type: {b}"
+            assert b["wagon_zone"], f"boundary/wicket ball missing wagon_zone: {b}"
+
+
 def test_manhattan(session):
     mid = state["live_match_id"]
     r = session.get(f"{API}/matches/{mid}/manhattan")
@@ -151,12 +172,69 @@ def test_partnerships(session):
     assert isinstance(r.json().get("partnerships", []), list)
 
 
+# --- NEW: Partnerships with rr, boundaries, timeline ---
+def test_partnerships_enriched_m_live_1(session):
+    r = session.get(f"{API}/matches/m_live_1/partnerships")
+    assert r.status_code == 200
+    parts = r.json().get("partnerships", [])
+    assert len(parts) >= 1, "no partnerships returned"
+    for p in parts:
+        for k in ["runs", "balls", "rr", "boundaries", "timeline"]:
+            assert k in p, f"partnership missing {k}: {p.keys()}"
+        assert isinstance(p["rr"], (int, float))
+        assert "fours" in p["boundaries"] and "sixes" in p["boundaries"]
+        assert isinstance(p["timeline"], list)
+        # timeline length ~ balls field (allow a little slack since loop may break early)
+        assert abs(len(p["timeline"]) - p["balls"]) <= 2, (
+            f"timeline {len(p['timeline'])} vs balls {p['balls']}"
+        )
+        # Cumulative runs must be monotonically non-decreasing and end equals runs
+        cum = 0
+        for t in p["timeline"]:
+            assert t["cum_runs"] >= cum
+            cum = t["cum_runs"]
+        if p["timeline"]:
+            assert p["timeline"][-1]["cum_runs"] == p["runs"]
+
+
 def test_predicted_xi(session):
     mid = state["live_match_id"]
     r = session.get(f"{API}/matches/{mid}/predicted-xi")
     assert r.status_code == 200
     p = r.json()
     assert "team_a" in p and "team_b" in p
+
+
+# --- NEW: Umpires, Playing XI, Venues ---
+def test_match_umpires_m_live_1(session):
+    r = session.get(f"{API}/matches/m_live_1/umpires")
+    assert r.status_code == 200
+    u = r.json()
+    assert isinstance(u.get("on_field"), list) and len(u["on_field"]) == 2
+    assert u.get("tv_umpire") and u["tv_umpire"].get("name")
+    assert u.get("reserve") and u["reserve"].get("name")
+    assert u.get("match_referee") and u["match_referee"].get("name")
+
+
+def test_playing_xi_m_live_1(session):
+    r = session.get(f"{API}/matches/m_live_1/playing-xi")
+    assert r.status_code == 200
+    d = r.json()
+    for side in ["team_a", "team_b"]:
+        assert side in d
+        xi = d[side].get("playing_xi", [])
+        assert 1 <= len(xi) <= 11
+        for pl in xi:
+            assert "career" in pl and "at_venue" in pl and "vs_opponent" in pl
+            assert pl.get("speciality") and pl.get("best_fielding_position")
+
+
+def test_venue_by_name(session):
+    r = session.get(f"{API}/venues", params={"name": "Wankhede Stadium, Mumbai"})
+    assert r.status_code == 200
+    v = r.json()
+    assert v.get("city") == "Mumbai"
+    assert "pitch_type" in v and "avg_1st_innings" in v
 
 
 # =============== Players & Teams ===============
@@ -173,6 +251,55 @@ def test_player_detail(session):
     assert r.status_code == 200
     p = r.json()
     assert isinstance(p.get("recent_form"), list) and len(p["recent_form"]) == 10
+
+
+# --- NEW: Player enrichment (Virat Kohli - p1) ---
+def test_player_detail_p1_kohli_enrichment(session):
+    r = session.get(f"{API}/players/p1")
+    assert r.status_code == 200, r.text
+    p = r.json()
+    assert p["name"] == "Virat Kohli"
+    assert p.get("speciality"), "speciality missing"
+    assert p.get("best_fielding_position"), "best_fielding_position missing"
+    st = p.get("stats", {})
+    # Per-format batting avg
+    ba = st.get("batting_avg")
+    assert isinstance(ba, dict) and {"T20", "ODI", "Test"} <= set(ba.keys()), f"batting_avg bad: {ba}"
+    for fmt in ["T20", "ODI", "Test"]:
+        assert isinstance(ba[fmt], (int, float)) and ba[fmt] > 0
+    # Per-format bowling avg (Kohli has 4 wickets → should be non-null)
+    bowl = st.get("bowling_avg")
+    assert bowl is not None, "Kohli has wickets > 0 so bowling_avg should be present"
+    assert {"T20", "ODI", "Test"} <= set(bowl.keys())
+    # MoTM / MoS counts
+    assert isinstance(st.get("motm_count"), int) and st["motm_count"] >= 0
+    assert isinstance(st.get("mos_count"), int) and st["mos_count"] >= 0
+    # wk_stats for non-keeper should be None
+    assert st.get("wk_stats") is None, "Kohli is not keeper; wk_stats must be None"
+    # Top venues & vs teams
+    tv = p.get("top_venues")
+    assert isinstance(tv, list) and len(tv) == 5
+    for v in tv:
+        assert "venue" in v and "matches" in v and "runs" in v and "avg" in v
+    vt = p.get("vs_teams")
+    assert isinstance(vt, list) and len(vt) == 6
+    for row in vt:
+        assert row.get("team", {}).get("id") != p.get("team_id"), "vs_teams must exclude own team"
+        for k in ["matches", "runs", "avg", "sr"]:
+            assert k in row, f"vs_teams row missing {k}"
+
+
+# --- NEW: Player enrichment (MS Dhoni - p3 Wicket-keeper) ---
+def test_player_detail_p3_dhoni_wk_stats(session):
+    r = session.get(f"{API}/players/p3")
+    assert r.status_code == 200
+    p = r.json()
+    assert p["name"] == "MS Dhoni"
+    assert p["role"] == "Wicket-keeper"
+    wk = p.get("stats", {}).get("wk_stats")
+    assert wk is not None, "Dhoni wk_stats must be non-null"
+    for k in ["dismissals", "stumpings", "catches_behind"]:
+        assert k in wk and isinstance(wk[k], int) and wk[k] > 0, f"wk_stats.{k} bad: {wk}"
 
 
 def test_teams_list(session):

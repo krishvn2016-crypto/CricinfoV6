@@ -27,6 +27,7 @@ export default function MatchDetail() {
   const [chat, setChat] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [tab, setTab] = useState<Tab>('summary');
+  const [commFilter, setCommFilter] = useState<'all' | 'boundaries' | 'wickets' | 'sixes' | 'fours' | 'dots'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -323,16 +324,52 @@ export default function MatchDetail() {
         {tab === 'commentary' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Ball-by-ball</Text>
-            {commentary.map((c, i) => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: spacing.sm }}>
+              {(['all', 'boundaries', 'wickets', 'sixes', 'fours', 'dots'] as const).map(f => (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setCommFilter(f)}
+                  style={[styles.filterChip, commFilter === f && styles.filterChipActive]}
+                  testID={`comm-filter-${f}`}>
+                  <Text style={[styles.filterChipTxt, commFilter === f && styles.filterChipTxtActive]}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {commentary
+              .filter(c => {
+                if (commFilter === 'all') return true;
+                if (commFilter === 'wickets') return c.wicket;
+                if (commFilter === 'boundaries') return c.runs === 4 || c.runs === 6;
+                if (commFilter === 'sixes') return c.runs === 6;
+                if (commFilter === 'fours') return c.runs === 4;
+                if (commFilter === 'dots') return c.runs === 0 && !c.wicket;
+                return true;
+              })
+              .map((c, i) => (
               <View key={i} style={styles.commentaryRow}>
                 <View style={styles.ovPill}>
                   <Text style={styles.ovPillTxt}>{c.over_ball}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <BallCircle runs={c.runs} wicket={c.wicket} />
                     <Text style={styles.commDesc}>{c.desc}</Text>
+                    {c.shot_type ? (
+                      <View style={styles.shotTag}>
+                        <Text style={styles.shotTagTxt}>{c.shot_type}</Text>
+                      </View>
+                    ) : null}
                   </View>
+                  {c.length ? (
+                    <View style={styles.ballMetaRow}>
+                      <Text style={styles.ballMetaTxt}>{c.length} · {c.line}</Text>
+                      {c.wagon_zone ? <Text style={styles.ballMetaDot}>·</Text> : null}
+                      {c.wagon_zone ? <Text style={styles.ballMetaTxt}>to {c.wagon_zone}</Text> : null}
+                      {c.dismissal_type ? <Text style={[styles.ballMetaTxt, { color: colors.wicket }]}>· {c.dismissal_type}</Text> : null}
+                    </View>
+                  ) : null}
                   <Text style={styles.commTxt}>{c.commentary}</Text>
                 </View>
               </View>
@@ -360,15 +397,32 @@ export default function MatchDetail() {
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Partnerships</Text>
-              {partnerships.map((p, i) => (
-                <View key={i} style={styles.partnRow}>
-                  <Text style={styles.partnLabel}>{p.batter_a} & {p.batter_b}</Text>
-                  <View style={styles.partnBarWrap}>
-                    <View style={[styles.partnBar, { width: `${Math.min(100, (p.runs / 100) * 100)}%` }]} />
+              {partnerships.map((p, i) => {
+                const maxCum = p.timeline ? Math.max(...p.timeline.map((t: any) => t.cum_runs)) : p.runs;
+                return (
+                  <View key={i} style={styles.partnCard}>
+                    <View style={styles.partnHead}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.partnLabel}>{p.batter_a} & {p.batter_b}</Text>
+                        <Text style={styles.partnMeta}>
+                          {p.balls} balls · RR {p.rr}
+                          {p.boundaries ? ` · ${p.boundaries.fours}×4 · ${p.boundaries.sixes}×6` : ''}
+                        </Text>
+                      </View>
+                      <Text style={styles.partnVal}>{p.runs}</Text>
+                    </View>
+                    {p.timeline && p.timeline.length > 0 ? (
+                      <View style={styles.timelineRow}>
+                        {p.timeline.map((t: any, j: number) => {
+                          const h = Math.max(2, (t.cum_runs / Math.max(maxCum, 1)) * 32);
+                          const color = t.runs === 6 ? colors.six : t.runs === 4 ? colors.four : t.runs > 0 ? colors.textSecondary : colors.bgTertiary;
+                          return <View key={j} style={{ flex: 1, height: h, backgroundColor: color, marginHorizontal: 0.5, borderTopLeftRadius: 1, borderTopRightRadius: 1 }} />;
+                        })}
+                      </View>
+                    ) : null}
                   </View>
-                  <Text style={styles.partnVal}>{p.runs} ({p.balls})</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </>
         )}
@@ -628,10 +682,24 @@ const styles = StyleSheet.create({
   manOver: { fontFamily: fonts.body, fontSize: 8, color: colors.textTertiary },
 
   partnRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 6 },
-  partnLabel: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.textSecondary, width: 120 },
+  partnCard: { backgroundColor: colors.bgSecondary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  partnHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 6 },
+  partnMeta: { fontFamily: fonts.body, fontSize: 10, color: colors.textTertiary, marginTop: 1 },
+  partnLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.text },
   partnBarWrap: { flex: 1, height: 6, backgroundColor: colors.bgSecondary, borderRadius: 3, overflow: 'hidden' },
   partnBar: { height: '100%', backgroundColor: colors.text },
-  partnVal: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text, width: 60, textAlign: 'right' },
+  partnVal: { fontFamily: fonts.headingBlack, fontSize: 20, color: colors.text, letterSpacing: -0.5 },
+  timelineRow: { flexDirection: 'row', alignItems: 'flex-end', height: 36, marginTop: 4 },
+
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: colors.bgSecondary },
+  filterChipActive: { backgroundColor: colors.text },
+  filterChipTxt: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.textSecondary },
+  filterChipTxtActive: { color: '#fff' },
+  shotTag: { backgroundColor: colors.bgSecondary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  shotTagTxt: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.textSecondary, letterSpacing: 0.3 },
+  ballMetaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginBottom: 2 },
+  ballMetaTxt: { fontFamily: fonts.bodyMedium, fontSize: 10, color: colors.textTertiary },
+  ballMetaDot: { color: colors.textTertiary, fontSize: 10 },
 
   fantasyTitle: { fontFamily: fonts.headingBlack, fontSize: 20, color: colors.text, marginBottom: 4, letterSpacing: -0.5 },
   fantasySub: { fontFamily: fonts.body, fontSize: 12, color: colors.textTertiary, marginBottom: spacing.md },

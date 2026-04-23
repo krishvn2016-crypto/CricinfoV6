@@ -243,6 +243,37 @@ def _ball_outcome():
     return {"runs": 0, "desc": "No run"}
 
 
+SHOT_TYPES = [
+    "Cover drive", "Straight drive", "On drive", "Square cut", "Late cut",
+    "Pull shot", "Hook shot", "Flick", "Sweep", "Reverse sweep",
+    "Slog sweep", "Scoop", "Uppercut", "Lofted drive", "Defensive block",
+]
+LENGTHS = ["Full toss", "Yorker", "Full", "Good length", "Back of length", "Short"]
+LINES = ["Outside off", "Off stump", "Middle stump", "Leg stump", "Down leg"]
+WAGON_ZONES = ["Fine leg", "Square leg", "Mid-wicket", "Mid-on", "Mid-off", "Cover", "Point", "Third man"]
+ENDS = ["Pavilion End", "City End"]
+DISMISSAL_TYPES = ["Caught", "Bowled", "LBW", "Run out", "Stumped", "Caught & bowled"]
+
+
+def _ball_full_detail(rng: random.Random):
+    """Generate a fully-detailed ball with shot/length/line/zone/end."""
+    base = _ball_outcome()
+    detail = {
+        **base,
+        "length": rng.choice(LENGTHS),
+        "line": rng.choice(LINES),
+        "end": rng.choice(ENDS),
+        "shot_type": None,
+        "wagon_zone": None,
+    }
+    if base.get("wicket"):
+        detail["dismissal_type"] = rng.choice(DISMISSAL_TYPES)
+    if base["runs"] > 0 or base.get("wicket"):
+        detail["shot_type"] = rng.choice(SHOT_TYPES)
+        detail["wagon_zone"] = rng.choice(WAGON_ZONES)
+    return detail
+
+
 def build_live_match(match_id, team_a_id, team_b_id, venue, league="IPL 2026"):
     """Build a dynamic live match with randomized in-progress state."""
     random.seed(hash(match_id) % (2**32))
@@ -443,24 +474,39 @@ def get_scorecard(match_id):
 
 
 def get_ball_by_ball(match_id):
-    """Generate ball-by-ball commentary for recent overs."""
+    """Generate ball-by-ball commentary for recent overs with rich shot detail."""
     match = get_match_by_id(match_id)
     if not match: return []
 
-    random.seed(hash(match_id + "bbb") % (2**32))
+    rng = random.Random(hash(match_id + "bbb") % (2**32))
     commentary = []
     overs = 4
     for over_num in range(overs):
         for ball_num in range(1, 7):
-            outcome = _ball_outcome()
+            detail = _ball_full_detail(rng)
+            shot = detail.get("shot_type")
+            zone = detail.get("wagon_zone")
+            txt = f"{detail['length']} on {detail['line']}"
+            if shot:
+                txt += f", {shot.lower()} through {zone}."
+            else:
+                txt += ", left alone." if detail['runs'] == 0 else ""
+            if detail.get("wicket"):
+                txt = f"{detail.get('dismissal_type', 'OUT')}! {detail['length']} on {detail['line']}, {shot.lower() if shot else 'plays'} but finds the fielder."
             commentary.append({
                 "over": over_num + 15,
                 "ball": ball_num,
                 "over_ball": f"{over_num + 15}.{ball_num}",
-                "runs": outcome["runs"],
-                "wicket": outcome.get("wicket", False),
-                "desc": outcome["desc"],
-                "commentary": f"{outcome['desc']} - Bowled on a good length, {['defended','punched','pulled','driven','cut','flicked'][random.randint(0,5)]} through {['cover','mid-wicket','point','third man','fine leg','square leg'][random.randint(0,5)]}.",
+                "runs": detail["runs"],
+                "wicket": detail.get("wicket", False),
+                "desc": detail["desc"],
+                "shot_type": shot,
+                "length": detail["length"],
+                "line": detail["line"],
+                "wagon_zone": zone,
+                "end": detail["end"],
+                "dismissal_type": detail.get("dismissal_type"),
+                "commentary": txt,
                 "timestamp": (datetime.now(timezone.utc) - timedelta(minutes=(overs*6 - (over_num*6+ball_num))*0.7)).isoformat(),
             })
     return list(reversed(commentary))
@@ -491,11 +537,51 @@ def get_manhattan(match_id):
 
 
 def get_partnership(match_id):
-    random.seed(hash(match_id + "ptr") % (2**32))
-    return [
-        {"wicket": i+1, "runs": random.randint(15, 85), "balls": random.randint(10, 60), "batter_a": random.choice(PLAYERS)["name"], "batter_b": random.choice(PLAYERS)["name"]}
-        for i in range(5)
-    ]
+    rng_global = random.Random(hash(match_id + "ptr") % (2**32))
+    results = []
+    for i in range(5):
+        rng = random.Random(hash(match_id + "ptr" + str(i)) % (2**32))
+        total_runs = rng.randint(15, 85)
+        total_balls = rng.randint(max(10, total_runs // 2), max(60, total_runs + 15))
+        # Build a ball-by-ball cumulative timeline
+        timeline = []
+        cum_runs = 0
+        cum_balls = 0
+        boundaries = {"fours": 0, "sixes": 0}
+        while cum_balls < total_balls and cum_runs <= total_runs:
+            remaining_balls = total_balls - cum_balls
+            remaining_runs = total_runs - cum_runs
+            if remaining_balls <= 0:
+                break
+            # Weight towards singles/dots with occasional boundaries
+            r = rng.random()
+            if remaining_runs >= 6 and r < 0.08:
+                runs = 6; boundaries["sixes"] += 1
+            elif remaining_runs >= 4 and r < 0.18:
+                runs = 4; boundaries["fours"] += 1
+            elif remaining_runs >= 1 and r < 0.55:
+                runs = 1
+            elif remaining_runs >= 2 and r < 0.62:
+                runs = 2
+            else:
+                runs = 0
+            runs = min(runs, remaining_runs)
+            cum_runs += runs
+            cum_balls += 1
+            timeline.append({"ball": cum_balls, "runs": runs, "cum_runs": cum_runs})
+            if cum_runs >= total_runs:
+                break
+        results.append({
+            "wicket": i + 1,
+            "runs": cum_runs,
+            "balls": cum_balls,
+            "rr": round((cum_runs / max(cum_balls, 1)) * 6, 2),
+            "boundaries": boundaries,
+            "batter_a": rng_global.choice(PLAYERS)["name"],
+            "batter_b": rng_global.choice(PLAYERS)["name"],
+            "timeline": timeline,
+        })
+    return results
 
 
 def get_top_performers():

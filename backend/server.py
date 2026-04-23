@@ -296,11 +296,19 @@ async def player_detail(player_id: str):
     p = mock_data.get_player(player_id)
     if not p:
         raise HTTPException(status_code=404, detail="Player not found")
-    # Recent form (random)
     import random
     random.seed(hash(player_id + "form") % (2**32))
     recent_form = [random.randint(2, 98) for _ in range(10)]
-    return {**p, "recent_form": recent_form}
+
+    # Top venues performance
+    top_venue_names = ["Wankhede Stadium, Mumbai", "M. Chinnaswamy Stadium, Bengaluru", "Eden Gardens, Kolkata", "M.A. Chidambaram Stadium, Chennai", "Narendra Modi Stadium, Ahmedabad"]
+    top_venues = [{"venue": v, **mock_data.get_player_venue_record(player_id, v)} for v in top_venue_names]
+
+    # Performance vs top opposing teams (excluding own team)
+    top_opps = [t for t in mock_data.TEAMS if t["id"] != p["team_id"]][:6]
+    vs_teams = [{"team": t, **mock_data.get_player_vs_team_record(player_id, t["id"])} for t in top_opps]
+
+    return {**p, "recent_form": recent_form, "top_venues": top_venues, "vs_teams": vs_teams}
 
 
 @api_router.get("/teams")
