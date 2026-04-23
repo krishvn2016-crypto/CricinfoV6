@@ -36,9 +36,6 @@ SPORTMONKS_API_KEY = os.environ.get('SPORTMONKS_API_KEY', '')
 SPORTMONKS_BASE = os.environ.get('SPORTMONKS_BASE_URL', 'https://cricket.sportmonks.com/api/v2.0')
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
-# LiteLLM Emergent key setup
-os.environ["ANTHROPIC_API_KEY"] = EMERGENT_LLM_KEY  # fallback placeholder
-
 app = FastAPI(title="Cricket Live API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer(auto_error=False)
