@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -934,6 +935,21 @@ async def seed_admin():
 @api_router.get("/")
 async def root():
     return {"service": "Cricket Live API", "status": "ok", "version": "1.0.0"}
+
+
+# =========================
+# Web build download (for Netlify drag-and-drop deploy)
+# =========================
+@api_router.get("/download/web-build")
+async def download_web_build():
+    zip_path = Path("/app/frontend/dist.zip")
+    if not zip_path.exists():
+        raise HTTPException(status_code=404, detail="Web build not available. Ask admin to regenerate.")
+    return FileResponse(
+        path=str(zip_path),
+        media_type="application/zip",
+        filename="crickinfo-web-build.zip",
+    )
 
 
 app.include_router(api_router)
