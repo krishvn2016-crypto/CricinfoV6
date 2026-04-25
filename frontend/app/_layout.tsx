@@ -1,54 +1,64 @@
 import React from 'react';
-import { Stack } from 'expo-router';
-import { useFonts, Outfit_600SemiBold, Outfit_800ExtraBold, Outfit_900Black } from '@expo-google-fonts/outfit';
-import { Manrope_400Regular, Manrope_500Medium, Manrope_700Bold } from '@expo-google-fonts/manrope';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { AuthProvider } from '../src/auth';
-import { colors } from '../src/theme';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Platform, StyleSheet, View } from 'react-native';
+import { colors, fonts } from '../../src/theme';
 
-export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Outfit_600SemiBold,
-    Outfit_800ExtraBold,
-    Outfit_900Black,
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_700Bold,
-  });
-
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
+export default function TabsLayout() {
   return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="login" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="register" options={{ presentation: 'modal' }} />
-          <Stack.Screen name="match/[id]" />
-          <Stack.Screen name="player/[id]" />
-          <Stack.Screen name="team/[id]" />
-          <Stack.Screen name="notifications" />
-          <Stack.Screen name="admin" />
-          <Stack.Screen name="about" />
-          <Stack.Screen name="terms" />
-          <Stack.Screen name="feedback" />
-        </Stack>
-      </AuthProvider>
-    </SafeAreaProvider>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textTertiary,
+        tabBarStyle: styles.tabBar,
+        tabBarLabelStyle: { fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.2 },
+      }}>
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size - 2} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="matches"
+        options={{
+          title: 'Matches',
+          tabBarIcon: ({ color, size }) => <Ionicons name="tennisball" size={size - 2} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ai"
+        options={{
+          title: 'Ask AI',
+          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size - 2} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: 'Community',
+          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size - 2} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" size={size} color={color} />,
+        }}
+      />
+    </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg },
+  tabBar: {
+    backgroundColor: colors.bg,
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    height: Platform.OS === 'ios' ? 85 : 65,
+    paddingTop: 6,
+  },
 });
