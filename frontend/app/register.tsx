@@ -1,4 +1,3 @@
-📝 FIX 2 — frontend/app/register.tsx (full file)
 Open: https://github.com/krishvn2016-crypto/CricinfoV6/blob/main/frontend/app/register.tsx
 ✏️ Edit → Ctrl+A → Delete → paste this exact code:
 import React, { useState } from 'react';
