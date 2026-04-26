@@ -5,7 +5,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export const api = axios.create({
   baseURL: `${BASE_URL}/api`,
-  timeout: 20000,
+  timeout: 90000,
 });
 
 api.interceptors.request.use(async (config) => {
@@ -28,73 +28,54 @@ export const matchesApi = {
   upcoming: () => api.get('/matches/upcoming'),
   completed: () => api.get('/matches/completed'),
   detail: (id: string) => api.get(`/matches/${id}`),
-  scorecard: (id: string) => api.get(`/matches/${id}/scorecard`),
-  commentary: (id: string) => api.get(`/matches/${id}/commentary`),
-  wagonWheel: (id: string, playerId: string) => api.get(`/matches/${id}/wagon-wheel/${playerId}`),
-  manhattan: (id: string) => api.get(`/matches/${id}/manhattan`),
-  partnerships: (id: string) => api.get(`/matches/${id}/partnerships`),
-  predictedXi: (id: string) => api.get(`/matches/${id}/predicted-xi`),
-  playingXi: (id: string) => api.get(`/matches/${id}/playing-xi`),
-  umpires: (id: string) => api.get(`/matches/${id}/umpires`),
-  venue: (name: string) => api.get(`/venues`, { params: { name } }),
+  ballByBall: (id: string, params?: any) => api.get(`/matches/${id}/balls`, { params }),
+  fantasy: (id: string) => api.get(`/matches/${id}/fantasy`),
+  chat: (id: string) => api.get(`/matches/${id}/chat`),
+  postChat: (id: string, message: string) => api.post(`/matches/${id}/chat`, { message }),
 };
 
 export const playersApi = {
-  list: () => api.get('/players'),
   detail: (id: string) => api.get(`/players/${id}`),
+  trending: () => api.get('/players/trending'),
 };
 
 export const teamsApi = {
-  list: () => api.get('/teams'),
   detail: (id: string) => api.get(`/teams/${id}`),
 };
 
+export const followApi = {
+  follow: (target_id: string, target_type: string) => api.post('/follow', { target_id, target_type }),
+  unfollow: (target_id: string, target_type: string) => api.delete('/follow', { data: { target_id, target_type } }),
+  list: () => api.get('/follow'),
+};
+
+export const aiApi = {
+  ask: (question: string) => api.post('/ai/ask', { question }),
+};
+
 export const miscApi = {
-  topPerformers: () => api.get('/top-performers'),
   homeFeed: () => api.get('/home-feed'),
-  winProbability: (matchId: string) => api.get(`/ai/win-probability/${matchId}`),
-  follow: (target_type: 'team' | 'player', target_id: string) =>
-    api.post('/follow', { target_type, target_id }),
-  unfollow: (target_type: 'team' | 'player', target_id: string) =>
-    api.post('/unfollow', { target_type, target_id }),
-  following: () => api.get('/following'),
-  setAlert: (match_id: string, alert_types: string[], player_id?: string) =>
-    api.post('/alerts', { match_id, alert_types, player_id }),
-  listAlerts: () => api.get('/alerts'),
-  askAI: (query: string, match_id?: string) => api.post('/ai/ask', { query, match_id }),
-  polls: () => api.get('/community/polls'),
-  votePoll: (poll_id: string, option_index: number) =>
-    api.post('/community/polls/vote', { poll_id, option_index }),
-  chat: (match_id: string) => api.get(`/community/chat/${match_id}`),
-  sendChat: (match_id: string, message: string) =>
-    api.post('/community/chat', { match_id, message }),
-  // Notifications
-  notifications: () => api.get('/notifications'),
-  markNotificationRead: (id: string) => api.post(`/notifications/${id}/read`),
-  markAllRead: () => api.post('/notifications/mark-all-read'),
-  // News
+  topPerformers: () => api.get('/top-performers'),
   news: () => api.get('/news'),
-  // Pro toggle
-  togglePro: () => api.post('/auth/toggle-pro'),
-  // Feedback
-  submitFeedback: (rating: number, message: string, email?: string) =>
-    api.post('/feedback', { rating, message, email }),
-  // Meta
-  meta: () => api.get('/meta'),
-  // Payments
-  paymentsConfig: () => api.get('/payments/config'),
-  createOrder: (pack: string = 'ai_5_pack') => api.post('/payments/create-order', { pack }),
-  verifyPayment: (order_id: string, payment_id: string, signature: string) =>
-    api.post('/payments/verify', { order_id, payment_id, signature }),
+  polls: () => api.get('/polls'),
+  vote: (poll_id: string, option_idx: number) => api.post('/polls/vote', { poll_id, option_idx }),
+  alerts: () => api.get('/alerts'),
+  feedback: (message: string) => api.post('/feedback', { message }),
 };
 
 export const adminApi = {
-  stats: () => api.get('/admin/stats'),
-  createNews: (payload: { title: string; body: string; image_url?: string; tags?: string[] }) =>
-    api.post('/admin/news', payload),
+  users: () => api.get('/admin/users'),
+  toggleAdmin: (user_id: string) => api.post(`/admin/users/${user_id}/toggle-admin`),
+  togglePro: (user_id: string) => api.post(`/admin/users/${user_id}/toggle-pro`),
+  createNews: (title: string, content: string, image?: string) => api.post('/admin/news', { title, content, image }),
   deleteNews: (id: string) => api.delete(`/admin/news/${id}`),
-  createPoll: (payload: { question: string; options: string[] }) =>
-    api.post('/admin/polls', payload),
-  toggleFeatured: (match_id: string, featured: boolean) =>
-    api.post('/admin/featured', { match_id, featured }),
+  createPoll: (question: string, options: string[]) => api.post('/admin/polls', { question, options }),
+  deletePoll: (id: string) => api.delete(`/admin/polls/${id}`),
+  feedback: () => api.get('/admin/feedback'),
+};
+
+export const paymentsApi = {
+  createOrder: () => api.post('/payments/razorpay/create-order'),
+  verify: (order_id: string, payment_id: string, signature: string) =>
+    api.post('/payments/razorpay/verify', { order_id, payment_id, signature }),
 };
