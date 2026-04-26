@@ -1,11 +1,3 @@
-
-📝 Update frontend/app/+html.tsx
-Open: https://github.com/krishvn2016-crypto/CricinfoV6/blob/main/frontend/app/+html.tsx
-✏️ Edit → Ctrl+A → Delete.
-Copy the code below (start from // @ts-nocheck, end at the last }).
-⬇️ Copy starts here:
-
-// @ts-nocheck
 import { ScrollViewStyleReset } from "expo-router/html";
 import type { PropsWithChildren } from "react";
 
