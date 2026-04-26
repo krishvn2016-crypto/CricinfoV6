@@ -1,5 +1,3 @@
-Open: https://github.com/krishvn2016-crypto/CricinfoV6/blob/main/frontend/app/register.tsx
-✏️ Edit → Ctrl+A → Delete → paste this exact code:
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
