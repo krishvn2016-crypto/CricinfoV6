@@ -1,3 +1,6 @@
+📝 FIX 2 — frontend/app/register.tsx (full file)
+Open: https://github.com/krishvn2016-crypto/CricinfoV6/blob/main/frontend/app/register.tsx
+✏️ Edit → Ctrl+A → Delete → paste this exact code:
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,9 +23,15 @@ export default function Register() {
     setLoading(true);
     try {
       await register(email.trim(), pw, name.trim());
-      router.back();
+      try { router.back(); } catch {}
+      setTimeout(() => { try { router.replace('/(tabs)/home'); } catch {} }, 50);
     } catch (e: any) {
-      Alert.alert('Registration failed', e?.response?.data?.detail || 'Please try again');
+      const msg = e?.response?.data?.detail || e?.message || 'Please try again';
+      if (Platform.OS === 'web') {
+        (typeof window !== 'undefined' && window.alert) ? window.alert('Registration failed: ' + msg) : Alert.alert('Registration failed', msg);
+      } else {
+        Alert.alert('Registration failed', msg);
+      }
     }
     setLoading(false);
   };
