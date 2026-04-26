@@ -18,9 +18,15 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email.trim(), pw);
-      router.back();
+      try { router.back(); } catch {}
+      setTimeout(() => { try { router.replace('/(tabs)/home'); } catch {} }, 50);
     } catch (e: any) {
-      Alert.alert('Login failed', e?.response?.data?.detail || 'Please check your credentials');
+      const msg = e?.response?.data?.detail || e?.message || 'Please check your credentials';
+      if (Platform.OS === 'web') {
+        (typeof window !== 'undefined' && window.alert) ? window.alert('Login failed: ' + msg) : Alert.alert('Login failed', msg);
+      } else {
+        Alert.alert('Login failed', msg);
+      }
     }
     setLoading(false);
   };
