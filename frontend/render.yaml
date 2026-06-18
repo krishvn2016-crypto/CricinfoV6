@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: crickinfo-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install --upgrade pip && pip install -r requirements.txt"
+    startCommand: "uvicorn server:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DB_NAME
+        value: cricket_app
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRE_MINUTES
+        value: "43200"
+      - key: APP_VERSION
+        value: "1.0.0-beta"
+      - key: FREE_TRIAL_DAYS
+        value: "7"
+      - key: SPORTMONKS_BASE_URL
+        value: https://cricket.sportmonks.com/api/v2.0
